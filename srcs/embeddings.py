@@ -6,9 +6,70 @@ from collections import Counter, defaultdict
 import numpy as np
 
 def load_text8_tokens():
-    with open("/Users/hduong/Documents/foundationofai/homework/spam/srcs/text8", "r") as f:
+    with open("text8", "r") as f:
         tokens = f.read().split()
     return tokens
+
+def phrase_pass(tokens,
+                min_count_unigram=5,
+                min_count_bigram=10,
+                delta=5.0,
+                threshold=100.0,
+                sep="_"):
+    """
+    One pass of word2phrase (bigram merge).
+    tokens: list[str] (đã lowercase, clean)
+    Trả về: tokens_merged (list[str])
+    """
+
+    N = len(tokens)
+    # 1) Count unigrams and bigrams
+    uni = Counter(tokens)
+    bigrams = Counter(zip(tokens[:-1], tokens[1:]))
+
+    # 2) Build merge set by PMI-like score
+    #    score = ((cnt12 - delta) / (cnt1 * cnt2)) * N
+    merge_pairs = set()
+    for (w1, w2), c12 in bigrams.items():
+        if c12 < min_count_bigram:
+            continue
+        c1, c2 = uni[w1], uni[w2]
+        if c1 < min_count_unigram or c2 < min_count_unigram:
+            continue
+        score = ((c12 - delta) / (c1 * c2)) * N
+        if score > threshold:
+            merge_pairs.add((w1, w2))
+
+    # 3) Greedy merge
+    merged = []
+    i = 0
+    L = len(tokens)
+    while i < L:
+        if i < L - 1 and (tokens[i], tokens[i+1]) in merge_pairs:
+            merged.append(tokens[i] + sep + tokens[i+1])
+            i += 2
+        else:
+            merged.append(tokens[i])
+            i += 1
+
+    return merged
+
+def word2phrase(tokens,
+                passes=2,
+                min_count_unigram=5,
+                min_count_bigram=10,
+                delta=5.0,
+                threshold=100.0,
+                sep="_"):
+    out = tokens
+    for _ in range(passes):
+        out = phrase_pass(out,
+                          min_count_unigram=min_count_unigram,
+                          min_count_bigram=min_count_bigram,
+                          delta=delta,
+                          threshold=threshold,
+                          sep=sep)
+    return out
 
 def build_vocab(tokens, min_count=5):
     freq = Counter(tokens)
@@ -71,6 +132,14 @@ def sample_negatives(neg_table, n_samples):
     idx = np.random.randint(0, len(neg_table), size=n_samples)
     return neg_table[idx]
 
+def print_pair_for(pairs, w, word2id, id2word):
+    id = word2id[w]
+    
+    for x, y in pairs:
+        if x == id:
+            print(w, "->", id2word[y])
+    
+
 class SGNS:
     def __init__(self, vocab_size, dim=100, lr=0.025, neg_k=5, seed=0):
         rng = np.random.default_rng(seed)
@@ -132,7 +201,7 @@ class SGNS:
         return float(loss)
     
     def get_vector(self, wid):
-        return self.w_in[wid]
+        return (self.w_in[wid] + self.w_out[wid]) / 2
     
     def most_similar(self, query_wid, topn=5):
         q = self.w_in[query_wid]
@@ -162,12 +231,26 @@ def train_word2vec(
     tokens = load_text8_tokens()
     print(f"Total raw tokens:{len(tokens)}")
 
+
+    print("tokens phrased...")
+    tokens_phrased = word2phrase(
+        tokens,
+        passes=2,                # 1–2 pass là vừa
+        min_count_unigram=10,    # text8: bắt đầu 10
+        min_count_bigram=20,     # text8: bắt đầu 20
+        delta=5.0,
+        threshold=100.0,
+        sep="_"
+    )
+
+
+
     print("Building vocab...")
-    word2id, id2word, counts, count = build_vocab(tokens, min_count)
+    word2id, id2word, counts, count = build_vocab(tokens_phrased, min_count)
     print(f"Vocab size(min_count = {min_count}) : {len(word2id)}")
 
     print("Subsampling...")
-    tokens_sub = sub_sample(tokens, word2id, counts, count)
+    tokens_sub = sub_sample(tokens_phrased, word2id, counts, count)
     print(f"Subsampling size:{len(tokens_sub)}")
 
     print("Builing skipgram...")
@@ -204,9 +287,9 @@ def train_word2vec(
 
             model.lr = lr * max(0.001, 1 - step / total_step)
 
-            #if n_batches % 200 == 0:
-                #print(f"epoch {i} | batch {n_batches} | loss {running / n_batches:.4f}")
-        #print(f"Epoch {i} done . avg loss = {running / max(1, n_batches):.4f}")
+            if n_batches % 200 == 0:
+                print(f"epoch {i} | batch {n_batches} | loss {running / n_batches:.4f}")
+        print(f"Epoch {i} done . avg loss = {running / max(1, n_batches):.4f}")
     return model, word2id, id2word
 
 # Save, demo
@@ -232,14 +315,14 @@ def show_similar(model, word2id, id2word, queries=("man", "woman", "king", "quee
 
 if __name__ == "__main__":
     model, word2id, id2word = train_word2vec(
-        dim=100, window=7, min_count=4,
+        dim=150, window=3, min_count=5,
         neg_k=10, epochs=10, batch_size=1024,
         lr=0.025, table_size=2_000_000,
         max_pair=3_000_000, seed=42
     )
-    
+    print_pair_for()
     print(id2word[:10])  # xem 10 id đầu map ra từ gì
-    save_vectors(model, id2word, path="w2v_brown.vec")
+    #save_vectors(model, id2word, path="w2v_brown.vec")
     show_similar(model, word2id, id2word, queries=("man", "woman", "king", "queen", "music", "time"))
 
     
