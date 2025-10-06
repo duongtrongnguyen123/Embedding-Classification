@@ -6,7 +6,7 @@ from collections import Counter, defaultdict
 import numpy as np
 
 def load_text8_tokens():
-    with open("C:/Nhap_mon_lap_trinh/Co_so_tri_tue_nhan_tao/classcificationEmail/srcs/text8", "r") as f:
+    with open("text8", "r") as f:
         tokens = f.read().split()
     return tokens
 
@@ -128,13 +128,15 @@ def sample_negatives(neg_table, n_samples):
     return neg_table[idx]
     
 
-def print_pair_for(pairs, wid, word2id, id2word):
+def print_pair_for(pairs, wid, word2id, id2word, limit=30):
     id = word2id[wid]
+    cnt = 0
     for i, j in pairs:
         if i == id:
+            cnt += 1
             print(id2word[i], "->", id2word[j])
-
-
+            if cnt > limit:
+                break
 
 
 class SGNS:
@@ -224,7 +226,7 @@ class SGNS:
         embed = self._raw_embedding(avg)
         if l2:
             embed = SGNS.normalize(embed)
-        embed = pca(k, eps)
+        embed = SGNS.pca(k, eps)
         self.embed = embed
         return embed
 
@@ -287,7 +289,6 @@ def train_word2vec(
     print("Builing skipgram...")
     pairs = build_skipgram_pairs(tokens_sub, word2id, window, max_pair)
     print(f"Training pairs: {len(pairs)}")
-    print_pair_for(pairs, "time", word2id, id2word)
 
     print("Making table..")
     neg_table = make_neg_table(counts, table_size)
@@ -350,7 +351,7 @@ def show_similar(model, word2id, id2word, queries):
 if __name__ == "__main__":
     model, word2id, id2word = train_word2vec(
         dim=150, window=3, min_count=5,
-        neg_k=10, epochs=1, batch_size=1024,
+        neg_k=10, epochs=11, batch_size=1024,
         lr=0.025, table_size=2_000_000,
         max_pair=3_000_000, seed=42
     )
