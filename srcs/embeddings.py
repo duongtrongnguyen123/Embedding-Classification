@@ -41,14 +41,8 @@ def phrase_pass(tokens,
                 delta=5.0,
                 threshold=100.0,
                 sep="_"):
-    """
-    One pass of word2phrase (bigram merge).
-    tokens: list[str] (đã lowercase, clean)
-    Trả về: tokens_merged (list[str])
-    """
 
     N = len(tokens)
-    # 1) Count unigrams and bigrams
     uni = Counter(tokens)
     bigrams = Counter(zip(tokens[:-1], tokens[1:]))
 
@@ -132,6 +126,15 @@ def make_neg_table(counts, table_size=10_000_000):
 def sample_negatives(neg_table, n_samples):
     idx = np.random.randint(0, len(neg_table), size=n_samples)
     return neg_table[idx]
+    
+
+def print_pair_for(pairs, wid, word2id, id2word):
+    id = word2id[wid]
+    for i, j in pairs:
+        if i == id:
+            print(id2word[i], "->", id2word[j])
+
+
 
 
 class SGNS:
@@ -145,6 +148,7 @@ class SGNS:
 
         self.w_in = (rng.random((vocab_size, dim)) - 0.5) / dim
         self.w_out = (rng.random((vocab_size, dim)) - 0.5) / dim 
+        self
     
     @staticmethod
     def _sigmoid(x):
@@ -193,16 +197,47 @@ class SGNS:
         np.add.at(self.w_out, neg_ids, -self.lr * grad_u_k_flat)
 
         return float(loss)
-    
-    def get_vector(self, wid):
-        return self.w_in[wid]
-    
-    def most_similar(self, query_wid, topn=5):
-        q = self.w_in[query_wid]
-        w = self.w_in
 
-        demon = np.linalg.norm(w, axis=1) * (np.linalg.norm(q) + 1e-12) + 1e-12
-        cos = w @ q / demon
+    def _raw_embedding(self, avg=True):
+        if avg:
+            return (self.w_in + self.w_out) * 0.5
+        else:
+            return self.w_in.copy()
+    
+    @staticmethod
+    def normalize(X, eps=1e-12):
+        return X / (np.linalg(X, axis=1) + eps)
+        
+    @staticmethod
+    def pca(X, k=1, eps=1e-12):
+        Xc = X - X.mean(axis=0, keepdims=True)           # center
+        # SVD trên Xc để lấy PCs theo chiều đặc trưng (D)
+        U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+        if k > 0:
+            C = Vt[:k]                                   # (k, D) các PC trội
+            P = C.T @ C                                  # (D, D) projector lên span(C)
+            Xc = Xc - Xc @ P                             # loại top-k PCs
+        Xc = Xc / (np.linalg.norm(Xc, axis=1, keepdims=True) + eps)  # re-normalize
+        return Xc
+    
+    def prepare_embedding(self, avg=True, l2=True, k=1, eps=1e-12):
+        embed = self._raw_embedding(avg)
+        if l2:
+            embed = SGNS.normalize(embed)
+        embed = pca(k, eps)
+        self.embed = embed
+        return embed
+
+
+    def get_vector(self, wid):
+        return (self.embed[wid] + self.embed[wid]) / 2
+    
+
+    def most_similar(self, query_wid, topn=5):
+        w = self.prepare_embedding()
+        q = w[query_wid]
+
+        cos = w @ q
 
         cos[query_wid] = -1
         top = np.argpartition(-cos, topn)[:topn]
@@ -215,6 +250,9 @@ def interate_minibatches(pairs, batch_size):
     for i in range(0, n, batch_size):
         yield pairs[i:i+batch_size]
 
+
+
+
 def train_word2vec(
     dim=100, window=5, min_count=5,
     neg_k=5, epochs=5, batch_size=1024, 
@@ -225,20 +263,17 @@ def train_word2vec(
     tokens = load_text8_tokens()
     print(f"Total raw tokens:{len(tokens)}")
 
-    # tokens = ...  # list[str] đã tokenize + lowercase (text8 đã lowercase sẵn)
-    
+    print("token phrased...")
     tokens_phrased = word2phrase(
         tokens,
-        passes=2,                # 1–2 pass là vừa
-        min_count_unigram=10,    # text8: bắt đầu 10
-        min_count_bigram=20,     # text8: bắt đầu 20
+        passes=2,               
+        min_count_unigram=10,   
+        min_count_bigram=20,     
         delta=5.0,
         threshold=100.0,
         sep="_"
     )
 
-    # Sau đó train SGNS như cũ trên tokens_phrased
-    # (Win+Wout)/2 + L2 normalize khi truy vấn
 
 
     print("Building vocab...")
@@ -252,6 +287,7 @@ def train_word2vec(
     print("Builing skipgram...")
     pairs = build_skipgram_pairs(tokens_sub, word2id, window, max_pair)
     print(f"Training pairs: {len(pairs)}")
+    print_pair_for(pairs, "time", word2id, id2word)
 
     print("Making table..")
     neg_table = make_neg_table(counts, table_size)
@@ -289,7 +325,7 @@ def train_word2vec(
     return model, word2id, id2word
 
 # Save, demo
-def save_vectors(model, id2word, path="w2v.brown.vec"):
+def save_vectors(model, id2word, path="w2v.text8.vec"):
     with open(path, "w", encoding="utf-8") as f:
         f.write(f"{model.vocab_size} {model.dim}\n")
         for wid in range(model.vocab_size):
@@ -298,7 +334,9 @@ def save_vectors(model, id2word, path="w2v.brown.vec"):
             f.write(w + " " + " ".join(f"{x:.6f}" for x in vec) + "\n")
     print(f"saved to {path}")
 
-def show_similar(model, word2id, id2word, queries=("man", "woman", "king", "queen", "music", "time")):
+
+
+def show_similar(model, word2id, id2word, queries):
     for q in queries:
         if q not in word2id:
             print(f"{q} is not in vocab")
@@ -311,17 +349,27 @@ def show_similar(model, word2id, id2word, queries=("man", "woman", "king", "quee
 
 if __name__ == "__main__":
     model, word2id, id2word = train_word2vec(
-        dim=100, window=3, min_count=5,
-        neg_k=10, epochs=10, batch_size=1024,
+        dim=150, window=3, min_count=5,
+        neg_k=10, epochs=1, batch_size=1024,
         lr=0.025, table_size=2_000_000,
         max_pair=3_000_000, seed=42
     )
     
-    print(id2word[:10])  # xem 10 id đầu map ra từ gì
+
     save_vectors(model, id2word, path="w2v_brown.vec")
     show_similar(model, word2id, id2word, queries=("man", "woman", "king", "queen", "music", "time"))
 
     
+
+
+
+
+
+
+
+
+
+
 
 
 
