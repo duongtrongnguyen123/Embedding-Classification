@@ -1,12 +1,14 @@
 import os
 import math 
 import random 
-from collections import Counter, defaultdict
+from collections import Counter
 
 import numpy as np
 
 def load_text8_tokens():
-    with open("text8", "r") as f:
+    base_direct = os.path.dirname(__file__)   
+    file_path = os.path.join(base_direct, "text8")
+    with open(file_path, "r") as f:
         tokens = f.read().split()
     return tokens
 
@@ -208,10 +210,10 @@ class SGNS:
     
     @staticmethod
     def normalize(X, eps=1e-12):
-        return X / (np.linalg(X, axis=1) + eps)
+        return X / (np.linalg.norm(X, axis=1, keepdims=True) + eps)
         
     @staticmethod
-    def pca(X, k=1, eps=1e-12):
+    def pca(X: np.ndarray, k=1, eps=1e-12):
         Xc = X - X.mean(axis=0, keepdims=True)           # center
         # SVD trên Xc để lấy PCs theo chiều đặc trưng (D)
         U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
@@ -226,17 +228,15 @@ class SGNS:
         embed = self._raw_embedding(avg)
         if l2:
             embed = SGNS.normalize(embed)
-        embed = SGNS.pca(k, eps)
+        embed = SGNS.pca(embed, k, eps)
         self.embed = embed
-        return embed
 
-
-    def get_vector(self, wid):
+    def get_vector(self, wid):      
         return (self.embed[wid] + self.embed[wid]) / 2
-    
 
     def most_similar(self, query_wid, topn=5):
-        w = self.prepare_embedding()
+        self.prepare_embedding()
+        w = self.embed
         q = w[query_wid]
 
         cos = w @ q
@@ -245,6 +245,17 @@ class SGNS:
         top = np.argpartition(-cos, topn)[:topn]
         top = top[np.argsort(-cos[top])]
         return list(zip(top.tolist(), cos[top].tolist()))
+    
+    def save_vectors(self, id2word, path="w2v.text8.vec"):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f"{self.vocab_size} {self.dim}\n")
+            for wid in range(self.vocab_size):
+                w = id2word[wid]
+                vec = self.get_vector(wid)
+                f.write(w + " " + " ".join(f"{x:.6f}" for x in vec) + "\n")
+        print(f"saved to {path}")
+
+
 
 # Training loop 
 def interate_minibatches(pairs, batch_size):
@@ -253,11 +264,9 @@ def interate_minibatches(pairs, batch_size):
         yield pairs[i:i+batch_size]
 
 
-
-
 def train_word2vec(
-    dim=100, window=5, min_count=5,
-    neg_k=5, epochs=5, batch_size=1024, 
+    dim=150, window=5, min_count=5,
+    neg_k=5, epochs=11, batch_size=1024, 
     lr=0.025, table_size=2_000_000, 
     max_pair=3_000_000, seed=0
 ):
@@ -266,6 +275,7 @@ def train_word2vec(
     print(f"Total raw tokens:{len(tokens)}")
 
     print("token phrased...")
+    
     tokens_phrased = word2phrase(
         tokens,
         passes=2,               
@@ -275,7 +285,6 @@ def train_word2vec(
         threshold=100.0,
         sep="_"
     )
-
 
 
     print("Building vocab...")
@@ -325,16 +334,8 @@ def train_word2vec(
         print(f"Epoch {i} done . avg loss = {running / max(1, n_batches):.4f}")
     return model, word2id, id2word
 
-# Save, demo
-def save_vectors(model, id2word, path="w2v.text8.vec"):
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(f"{model.vocab_size} {model.dim}\n")
-        for wid in range(model.vocab_size):
-            w = id2word[wid]
-            vec = model.get_vector(wid)
-            f.write(w + " " + " ".join(f"{x:.6f}" for x in vec) + "\n")
-    print(f"saved to {path}")
 
+# Demo
 
 
 def show_similar(model, word2id, id2word, queries):
@@ -350,53 +351,17 @@ def show_similar(model, word2id, id2word, queries):
 
 if __name__ == "__main__":
     model, word2id, id2word = train_word2vec(
-        dim=150, window=3, min_count=5,
-        neg_k=10, epochs=11, batch_size=1024,
+        dim=100, window=3, min_count=5,
+        neg_k=10, epochs=10, batch_size=1024,
         lr=0.025, table_size=2_000_000,
         max_pair=3_000_000, seed=42
     )
     
-
-    save_vectors(model, id2word, path="w2v_brown.vec")
     show_similar(model, word2id, id2word, queries=("man", "woman", "king", "queen", "music", "time"))
-
+    model.save_vectors(id2word, path="w2v_text8.vec")
     
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-def load_brown_tokens():
-    import nltk
-    try: 
-        from nltk.corpus import brown
-        nltk.data.path.append("/Users/hduong/Documents/foundationofai/homework/spam/srcs/ntlk_data")
-    except LookupError:
-        nltk.download("brown")
-        from nltk.corpus import brown
-        nltk.data.path.append("/Users/hduong/Documents/foundationofai/homework/spam/srcs/ntlk_data")
-    except Exception:
-        nltk.download("brown")
-        from nltk.corpus import brown
-        nltk.data.path.append("/Users/hduong/Documents/foundationofai/homework/spam/srcs/ntlk_data")
-
-    sents = brown.sents()
-    tokens = []
-    for sent in sents:
-        for w in sent:
-            w = w.lower()
-
-            if any(ch.isalnum for ch in w):
-                tokens.append(w)
-    return tokens
 
         
