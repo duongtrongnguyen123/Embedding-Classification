@@ -6,7 +6,7 @@ from sklearn.datasets import load_iris
 from sklearn.preprocessing import StandardScaler
 from sklearn.datasets import load_digits
 
-def _sigmoid(z: np.ndarray) -> np.ndarray:
+def _sigmoid(z):
     out = np.empty_like(z, dtype=z.dtype)
     pos = (z >= 0)
     neg = ~pos
@@ -15,7 +15,7 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
     out[neg] = expz / (1 + expz)
     return out
 
-def _log_loss(p: np.ndarray, y:np.ndarray, sample_weight: Optional[np.ndarray] = None) -> float:
+def _log_loss(p, y, sample_weight: Optional[np.ndarray] = None) -> float:
     eps = 1e-15
     p = np.clip(p, eps, 1-eps)
     if sample_weight is None:
@@ -38,7 +38,6 @@ class LogisticRegressionScratch:
             lr=.1,
             n_iters=1000,
             batch_size: Optional[int]=None,
-            optimizer="gd",
             fit_intercept=True,
             reg_lambda=0.0,
             eps=1e-10,
@@ -53,7 +52,6 @@ class LogisticRegressionScratch:
         self.batch_size = batch_size
         self.reg_lambda = reg_lambda
         self.fit_intercept = fit_intercept
-        self.optimizer = optimizer
         self.eps = eps
         self.class_weight = class_weight
         self.val_ratio = val_ratio
@@ -200,7 +198,7 @@ class LogisticRegressionScratch:
 
     def _check_is_fitted(self):
         if not self.is_fitted or self.w is None:
-            raise RuntimeError("Model is not fitted yet. Call fit(X, y) first.")
+            raise RuntimeError("Not fitted yet!")
 
                 
 
@@ -211,14 +209,14 @@ if __name__ == "__main__":
     X, y = X[mask], y[mask]
     y = (y == 1).astype(int)
 
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=0, stratify=y)
+    X_tr, X_ts, y_tr, y_ts = train_test_split(X, y, test_size=0.2, random_state=0, stratify=y)
     scaler = StandardScaler()
     X_tr = scaler.fit_transform(X_tr)
-    X_te = scaler.transform(X_te)
+    X_ts = scaler.transform(X_ts)
     #print(X_tr)
     #print(y_tr)
-    #print(X_te)
-    #print(y_te)
+    #print(X_ts)
+    #print(y_ts)
 
     clf = LogisticRegressionScratch(n_iters=3000, lr=0.005, reg_lambda=0.5, batch_size=32, val_ratio=0.2, class_weight="balanced")
     clf.fit(X_tr, y_tr)
@@ -244,9 +242,9 @@ if __name__ == "__main__":
         return acc, prec, rec, f1
 
     visualize_loss(clf)
-    y_pred = clf.predict(X_te)
-    acc, prec, rec, f1 = metrics(y_te, y_pred)
+    y_pred = clf.predict(X_ts)
+    acc, prec, rec, f1 = metrics(y_ts, y_pred)
     print(f"Test: acc={acc:.3f} prec={prec:.3f} rec={rec:.3f} f1={f1:.3f}")
 
 
-    print("proba[:20] =", clf.predict_proba(X_te[:20]))
+    print("proba[:20] =", clf.predict_proba(X_ts[:20]))
