@@ -5,6 +5,8 @@ from typing import Iterable, Dict, Tuple, List, Callable
 
 import numpy as np 
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import IterableDataset, DataLoader
 
 def tokenize(s: str):
@@ -89,7 +91,7 @@ def subsample_tokens(token_iter: Iterable[str],
 
 class SkipGramPairsIterable:
     def __init__(self, ids_iter_factory, window=5, rng=None, max_pair=None):
-        self.ids_iter_factory = ids_iter_factory       #khi goi yield tung id 
+        self.ids_iter_factory = ids_iter_factory       #khi goi yield tung id (train_ids)
         self.window = window
         self.rng = rng or random.Ramdom()
         self.max_pair = max_pair
@@ -154,6 +156,7 @@ def make_collate_fn(neg_sampler: NegativeSampler, neg_k, avoid_self=True):
         B = centers.size(0)
         neg = neg_sampler.sample(neg_k * B).view(B, neg_k)
 
+        #neg dinh voi centers hoac pos
         if avoid_self:
             with torch.no_grad():
                 flatten = neg.view(-1)
@@ -181,7 +184,21 @@ keep_probs[word2id["<unk>"]] = 1         #unk:dummy vector
 def make_sub_token_iter():
     return subsample_tokens(train_tokens_iter, word2id, keep_probs, "<unk>", rng=random.Random(123))
 
-pair_iterable = SkipGramPairsIterable(train_tokens_iter, 5, rng=random.Random(1234), max_pair=None)
+
+pairs_iterable = SkipGramPairsIterable(train_tokens_iter, 5, rng=random.Random(1234), max_pair=None)
+
+dataset = SkipGramDataset(pairs_iterable)
+neg_sampler = NegativeSampler(counts)
+collate_fn = make_collate_fn(neg_sampler, 10, avoid_self=True)
+
+loader = DataLoader(dataset, batch_size=1024, collate_fn=collate_fn,
+                    run_workers=0, pin_memory=False)
+
+
+class SGNS(nn.Module):
+    def __init__(self, vocab_size=None, dim: int=None, word2id=None, )
+
+
 
 
 
