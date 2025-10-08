@@ -9,6 +9,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import IterableDataset, DataLoader
 
+import matplotlib.pyplot as plt
+
 def tokenize(s: str):
     return s.strip().split()
 
@@ -233,6 +235,34 @@ class SGNS(nn.Module):
         cos = x_norm @ w_norm.T
         vals, idx = torch.topk(cos, k=topn, dim=1)
         return vals, idx
+    
+
+def evaluate(model: SGNS, id2word, wid=["man", "woman", "king", "queen", "happy", "good", "bad", "nice", "time"]):
+    cos, idx = model.most_similar(wid, 5, "input")
+    for w, row_idx, row_val in zip(wid, idx, cos):
+        print(f"Most similar to {w}:")
+        for i, v in zip(row_idx, row_val):
+            word = id2word[i.item()]
+            print(f"  {word:10s}  Cos: {v.item():.3f}")
+        print()
+    
+class LossPlotter:
+    def __init__(self):
+        self.train_loss = []
+        self.valid_loss = []
+    
+    def update(self, epoch, new_tloss, new_vloss):
+        self.train_loss.append(new_tloss)
+        self.valid_loss.append(new_vloss)
+
+        plt.clf()
+        plt.plot(range(1, len(self.train_loss)+1), self.train_loss, marker='o', label="Train")
+        plt.plot(range(1, len(self.valid_loss)+1), self.valid_loss, marker='s', label="valid")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.grid = True
+        plt.pause(0.01)
 
 if __name__ == "__main__":
 
@@ -249,11 +279,17 @@ if __name__ == "__main__":
         return subsample_tokens(iter_wiki_tokens("train"),
                                  word2id, keep_probs, "<unk>",
                                    rng=random.Random(123))
+    def make_sub_token_valid_iter():
+        return subsample_tokens(iter_wiki_tokens("validation"),
+                                 word2id, keep_probs, "<unk>",
+                                   rng=random.Random(123))
 
 
     #Build iter dataset for DataLoader
     pairs_iterable = SkipGramPairsIterable(make_sub_token_iter, 5, rng=random.Random(1234), max_pair=None)         #Bo dau ngoac 
+    valid_pairs_iterable = SkipGramPairsIterable(make_sub_token_valid_iter, 5, rng=random.Random(111), max_pair=None)
     dataset = SkipGramDataset(pairs_iterable)
+    valid_dataset = SkipGramDataset(valid_pairs_iterable)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     neg_sampler = NegativeSampler(counts.to(device), device=device)
@@ -261,26 +297,51 @@ if __name__ == "__main__":
 
     loader = DataLoader(dataset, batch_size=1024, collate_fn=collate_fn,
                         num_workers=4, pin_memory=False)  #pin_mem=True neu GPU
-
+    valid_loader = DataLoader(valid_dataset, batch_size=1024, collate_fn=collate_fn,
+                              num_workers=4, pin_memory=False)
     
-    model = SGNS(len(id2word), dim=250).to(device)
+    model = SGNS(len(id2word), dim=200).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
 
     model.train()
-    for step, batch in enumerate(loader):
-        center = batch["center"].to(device)
-        pos = batch["pos"].to(device)
-        neg = batch["neg"].to(device)
-        
-        loss = model(center, pos, neg)
-        opt.zero_grad(set_to_none=True)
-        loss.backward()
-        opt.step()
+    lossplot = LossPlotter()
+    for epoch in range(10):
+        train_loss = 0.0
+        for step, batch in enumerate(loader):
+            center = batch["center"].to(device)
+            pos = batch["pos"].to(device)
+            neg = batch["neg"].to(device)
+            
+            loss = model(center, pos, neg)
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            opt.step()
+            train_loss += loss
 
-        if step % 100 == 0:
-            print(f"step {step}: loss={loss.item():.4f}")
+            if step % 100 == 0:
+                print(f"step {step}: loss={loss.item():.4f}")
+        train_loss = train_loss / len(loader)
+
+        valid_loss = 0.0
+        for batch in valid_loader:
+            center = batch["center"]
+            pos = batch["pos"]
+            neg = batch["neg"]
+            
+            loss = model(center, pos, neg)
+            valid_loss += loss
+        valid_loss = valid_loss / len(valid_loader)
+        evaluate(model, id2word, wid=["man", "woman", "king", "queen", "happy", "good", "bad", "nice", "time"])
+        lossplot.update(epoch, train_loss, valid_loss)
 
 
+        bundle = {
+            "word2id" : word2id,
+            "id2word" : id2word,
+            "w_in" : model.embed_in.weight.detach().cpu().float(),
+            "w_out" : model.embed_out.weight.detaach().cpu().float()
+        }
+        torch.save(bundle, f"/kaggle/working/w2v_epoch{epoch}.pt")
 
 
 
