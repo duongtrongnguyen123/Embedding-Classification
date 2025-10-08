@@ -66,11 +66,14 @@ def build_vocab(token_iter: Iterable[str],
 
 def compute_keep_probs(counts: torch.Tensor=None,
                       total_tokens: int=None, t=1e-5) -> torch.Tensor:
-    p = torch.empty(shape=counts.shape)
     f = counts.to(torch.float64) / max(1, total_tokens)
-    p = (torch.sqrt(f/t) + 1) * (t / f)
-    p = torch.clamp(p, 0, 1)
-    return p.to(torch.float32)
+    p = torch.empty_like(f, dtype=torch.float32)
+
+    nz = f > 0
+    p[~nz] = 0
+    
+    p[nz] = (torch.sqrt(f[nz]/t) + 1) * (t / f[nz])
+    return torch.clamp(p, 0, 1).to(torch.float32)
 
 def subsample_tokens(token_iter: Iterable[str],
                      word2id: Dict[str,int],
@@ -81,7 +84,7 @@ def subsample_tokens(token_iter: Iterable[str],
         rng = random.Random()
     unk_id = word2id.get(unk_token, 0)
 
-    kp = keep_probs.detach().to("cpu").numpy()
+    kp = keep_probs.detach().cpu().numpy()
 
     for w in token_iter:
         wid = word2id.get(w, unk_id)
@@ -108,13 +111,13 @@ class SkipGramPairsIterable:
         made=0
         while True:
             center_idx = self.window
-            win = random.randint(1, self.window)
+            win = self.rng.randint(1, self.window)
             
             for j in range(center_idx-win, center_idx+win+1):
                 if j==center_idx:
                     continue
                 made+=1
-                yield [buf[center_idx], buf[j]]
+                yield (buf[center_idx], buf[j])
             if self.max_pair and made>self.max_pair:
                 break
 
@@ -131,6 +134,9 @@ class NegativeSampler:
         freq = torch.clamp(freq, 0)
         p = freq.pow(0.75)
         s = p.sum()
+        if s <= 0:
+            p = torch.ones_like(p)
+            s = p.sum()
         self.probs = (p / s).to(torch.float32).to(device)
         self.device = device
         self.V = counts.numel()
@@ -139,7 +145,7 @@ class NegativeSampler:
     def sample(self, num_samples) -> torch.Tensor:
         return torch.multinomial(self.probs, num_samples, replacement=True)
     
-class SkipGramDataset(IterableDataset):
+class SkipGramDataset(IterableDataset):                        #wrap SkipGramIterable de tao nhieu factory cho nhieu epoch
     def __init__(self, pairs_iterable: SkipGramPairsIterable):
         super().__init__()
         self.pairs_iterable = pairs_iterable
@@ -166,8 +172,7 @@ def make_collate_fn(neg_sampler: NegativeSampler, neg_k, avoid_self=True):
                     flatten[resample] = neg_sampler.sample(n_need)
                     resample = (flatten == centers.repeat_interleave(neg_k)) | (flatten == pos.repeat_interleave(neg_k))
                     n_need = resample.sum()
-
-        neg = flatten.view(B, neg_k)
+                neg = flatten.view(B, neg_k)
 
         return {"center" : centers, "pos": pos, "neg": neg}
 
@@ -176,27 +181,104 @@ def make_collate_fn(neg_sampler: NegativeSampler, neg_k, avoid_self=True):
 
 
 
-train_tokens_iter = iter_wiki_tokens("train")
-word2id, id2word, counts, count = build_vocab(train_tokens_iter, min_count=5, max_vocab_size=None, )
-keep_probs = compute_keep_probs(counts, count, t=1e-5)
-keep_probs[word2id["<unk>"]] = 1         #unk:dummy vector
-
-def make_sub_token_iter():
-    return subsample_tokens(train_tokens_iter, word2id, keep_probs, "<unk>", rng=random.Random(123))
-
-
-pairs_iterable = SkipGramPairsIterable(train_tokens_iter, 5, rng=random.Random(1234), max_pair=None)
-
-dataset = SkipGramDataset(pairs_iterable)
-neg_sampler = NegativeSampler(counts)
-collate_fn = make_collate_fn(neg_sampler, 10, avoid_self=True)
-
-loader = DataLoader(dataset, batch_size=1024, collate_fn=collate_fn,
-                    run_workers=0, pin_memory=False)
-
-
 class SGNS(nn.Module):
-    def __init__(self, vocab_size=None, dim: int=None, word2id=None, )
+    def __init__(self, vocab_size=None, dim: int=None, padding_idx=None):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.dim = dim
+        self.embed_in = nn.Embedding(vocab_size, dim, padding_idx=padding_idx)
+        self.embed_out = nn.Embedding(vocab_size, dim, padding_idx=padding_idx)
+        self.reset_parameter()
+
+    def reset_parameter(self):
+        bound = 0.5 / self.dim
+        nn.init.uniform__(self.embed_in.weight, -bound, bound)
+        nn.init.uniform__(self.embed_out.weight, -bound, bound)
+
+    def forward(self, centers, pos, neg):
+        v_c = self.embed_in(centers)
+        u_o = self.embed_out(pos)
+        u_k = self.embed_out(neg)
+
+
+        pos_score = (v_c * u_o).sum(dim=1)
+        pos_loss = F.logsigmoid(pos_score)
+
+        neg_score = -torch.einsum("bd,bkd->bk", v_c, u_k)
+        neg_loss = F.logsigmoid(neg_score).sum(dim=1)
+
+        loss = (-pos_loss -neg_loss).mean()
+
+        return loss
+    @torch.no_grad()
+    def get_input_vectors(self):
+        return self.embed_in.weight.detach().clone()
+    @torch.no_grad()
+    def get_output_vector(self):
+        return self.embed_out.weight.detach().clone()
+    
+    @torch.no_grad()
+    def most_similar(self, wid, topn=5, use='input'):
+        if use == 'input':
+            w = self.embed_in.weight
+        if use == 'output':
+            w = self.embed_out.weight
+        else:
+            w = (self.embed_in.weight + self.embed_out.weight) / 2
+
+        x = w[wid]
+        if x.dim() == 1: x = x.unsqueeze(0)
+        w_norm = w / (w.norm(dim=1, keepdim=True) + 1e-9)
+        x_norm = x / (x.norm(dim=1, keepdim=True) + 1e-9)
+        cos = x_norm @ w_norm.T
+        vals, idx = torch.topk(cos, k=topn, dim=1)
+        return vals, idx
+
+if __name__ == "__main__":
+
+    print("load stream train...")
+    #single use token iter for vocab
+    train_tokens_iter = iter_wiki_tokens("train")
+    print("building vocab...")
+    word2id, id2word, counts, count = build_vocab(train_tokens_iter, min_count=5, max_vocab_size=None)
+    print("compute keep probs...")
+    keep_probs = compute_keep_probs(counts, count, t=1e-5)
+    keep_probs[word2id["<unk>"]] = 1         #unk:dummy vector
+
+    def make_sub_token_iter():                      # moi lan goi make_sub phai tra 1 iter moi. Nen k duoc dung iter co dinh train_token_iter
+        return subsample_tokens(iter_wiki_tokens("train"),
+                                 word2id, keep_probs, "<unk>",
+                                   rng=random.Random(123))
+
+
+    #Build iter dataset for DataLoader
+    pairs_iterable = SkipGramPairsIterable(make_sub_token_iter, 5, rng=random.Random(1234), max_pair=None)         #Bo dau ngoac 
+    dataset = SkipGramDataset(pairs_iterable)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    neg_sampler = NegativeSampler(counts.to(device), device=device)
+    collate_fn = make_collate_fn(neg_sampler, 10, avoid_self=True)
+
+    loader = DataLoader(dataset, batch_size=1024, collate_fn=collate_fn,
+                        num_workers=4, pin_memory=False)  #pin_mem=True neu GPU
+
+    
+    model = SGNS(len(id2word), dim=250).to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=2e-3)
+
+    model.train()
+    for step, batch in enumerate(loader):
+        center = batch["center"].to(device)
+        pos = batch["pos"].to(device)
+        neg = batch["neg"].to(device)
+        
+        loss = model(center, pos, neg)
+        opt.zero_grad(set_to_none=True)
+        loss.backward()
+        opt.step()
+
+        if step % 100 == 0:
+            print(f"step {step}: loss={loss.item():.4f}")
 
 
 
