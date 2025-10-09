@@ -5,13 +5,12 @@ from collections import Counter, deque
 from typing import Iterable, Dict, Tuple, List
 from torch.utils.data import IterableDataset
 
-
 def tokenize(s: str):
     return s.strip().split()
 
 def iter_wiki_tokens(split, streaming=False):
     ds = load_dataset("wikitext", "wikitext-103-raw-v1",
-                      split=split, streaming=streaming)
+                    split=split, streaming=streaming)
     
     for ex in ds:
         t = ex["text"]
@@ -34,47 +33,7 @@ def load_data(streaming=False, materialize=False):
     return train_iter, valid_iter, test_iter
 
 
-def build_vocab(token_iter: Iterable[str],
-                min_count=5, max_vocab_size=None,
-                specials: List[str]=None):
-    if specials is None:
-        specials = ["<unk>"]
-
-    counter = Counter()
-    total = 0
-    for tok in token_iter:
-        total += 1
-        counter[tok] += 1
-
-    vocab = [w for w, i in counter.items() if i >= min_count]
-    vocab = sorted(vocab, key=lambda w:-counter[w])
-
-    if max_vocab_size is not None:
-        cap = max(0, max_vocab_size - len(specials))
-        vocab = vocab[:cap]
-
-    id2word = list(specials) + [w for w in vocab]
-    word2id = {w:i for i, w in enumerate(id2word)}
-
-    counts = torch.tensor([counter[w] for w in id2word], dtype=torch.long)
-
-    return word2id, id2word, counts, total
-
-
-def compute_keep_probs(counts: torch.Tensor=None,
-                      total_tokens: int=None, t=1e-5) -> torch.Tensor:
-    device = counts.device
-
-    count_f = counts.to(torch.float32)
-    t = torch.tensor(t, dtype=torch.float32, device=device)
-    f = count_f / float(total_tokens)
-    p = torch.ones_like(f)
-
-    nz = f > 0
     
-    p[nz] = (torch.sqrt(f[nz]/t) + 1) * (t / f[nz])
-    return torch.clamp(p, 0, 1).to(torch.float32)
-
 def subsample_tokens(token_iter: Iterable[str],
                      word2id: Dict[str,int],
                      keep_probs: torch.Tensor,
@@ -129,7 +88,7 @@ class SkipGramPairsIterable:
 class NegativeSampler:
     def __init__(self, counts, device='cpu'):
         self.device = device
-        freq = counts.to(torch.float64, device=device)
+        freq = counts.to(device = device, dtype=torch.float64)
         freq = torch.clamp(freq, 0)
         p = freq.pow(0.75)
         s = p.sum().item()
@@ -173,3 +132,15 @@ def make_collate_fn(batch:List[Tuple[int,int]], *, neg_sampler: NegativeSampler,
 
     return {"center" : centers, "pos": pos, "neg": neg}
 
+
+
+
+
+
+
+
+
+
+
+
+#7/10
