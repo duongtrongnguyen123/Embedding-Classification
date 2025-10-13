@@ -199,8 +199,28 @@ class LogisticRegressionScratch:
     def _check_is_fitted(self):
         if not self.is_fitted or self.w is None:
             raise RuntimeError("Not fitted yet!")
+def metrics(y_true, y_pred):
+        y_true = y_true.astype(int)
+        y_pred = y_pred.astype(int)
+        tp = int(((y_true == 1) & (y_pred == 1)).sum())
+        tn = int(((y_true == 0) & (y_pred == 0)).sum())
+        fp = int(((y_true == 0) & (y_pred == 1)).sum())
+        fn = int(((y_true == 1) & (y_pred == 0)).sum())
+        acc = (tp + tn) / (tp + tn + fp + fn)
+        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
+        return acc, prec, rec, f1                
+def visualize_loss(cl: LogisticRegressionScratch = None):
+    plt.plot(cl.history_train_loss, label="train")
+    plt.plot(cl.history_val_loss, label="val")
+    plt.legend()
+    plt.show()
 
-                
+    visualize_loss(clf)
+    y_pred = clf.predict(X_ts)
+    acc, prec, rec, f1 = metrics(y_ts, y_pred)
+    print(f"Test: acc={acc:.3f} prec={prec:.3f} rec={rec:.3f} f1={f1:.3f}")
 
 
 if __name__ == "__main__":
@@ -222,29 +242,4 @@ if __name__ == "__main__":
     clf.fit(X_tr, y_tr)
     print(clf.w)
     
-    def visualize_loss(cl: LogisticRegressionScratch = None):
-        plt.plot(cl.history_train_loss, label="train")
-        plt.plot(cl.history_val_loss, label="val")
-        plt.legend()
-        plt.show()
-
-    def metrics(y_true, y_pred):
-        y_true = y_true.astype(int)
-        y_pred = y_pred.astype(int)
-        tp = int(((y_true == 1) & (y_pred == 1)).sum())
-        tn = int(((y_true == 0) & (y_pred == 0)).sum())
-        fp = int(((y_true == 0) & (y_pred == 1)).sum())
-        fn = int(((y_true == 1) & (y_pred == 0)).sum())
-        acc = (tp + tn) / (tp + tn + fp + fn)
-        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
-        return acc, prec, rec, f1
-
-    visualize_loss(clf)
-    y_pred = clf.predict(X_ts)
-    acc, prec, rec, f1 = metrics(y_ts, y_pred)
-    print(f"Test: acc={acc:.3f} prec={prec:.3f} rec={rec:.3f} f1={f1:.3f}")
-
-
     print("proba[:20] =", clf.predict_proba(X_ts[:20]))

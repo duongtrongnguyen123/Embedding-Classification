@@ -15,3 +15,11 @@ venv/
 
 # macOS system files
 .DS_Store
+
+# Bỏ qua thư mục dữ liệu IMDB thô
+data/aclImdb/
+
+# Bỏ qua cả các file mô hình lớn đã lưu
+*.pt
+*.pth
+*.vec
