@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # ------------------ KHAI BÁO ĐƯỜNG DẪN ------------------
     # ⚠️ THAY THẾ ĐƯỜNG DẪN THỰC TẾ CỦA BẠN ⚠️
     WE_FILE_PATH = os.path.join(os.getcwd(), 'vocab.pt', 'vocab.pt') 
-    IMDB_DATA_DIR = os.path.join(os.getcwd(), 'data', 'aclImdb') # Đường dẫn tới folder aclImdb
+    CACHED_CSV_FILE = os.path.join(os.getcwd(), 'data', 'imdb_full_reviews.csv')
     # --------------------------------------------------------
     
     # 1. Tải và Chuẩn bị Word Embedding
@@ -174,12 +174,18 @@ if __name__ == "__main__":
     print(f"   -> Tải thành công. Kích thước WE: {WE_MATRIX.shape}")
     
     # 2. Tải Dữ liệu IMDB
-    print(f"2. Đang tải dữ liệu IMDB từ: {IMDB_DATA_DIR}")
-    df_all = load_imdb_data_from_folders(IMDB_DATA_DIR, splits=['train', 'test'])
+    print(f"2. Đang tải dữ liệu từ file cached: {CACHED_CSV_FILE}")
+    
+    try:
+        # Tải nhanh từ CSV
+        df_all = pd.read_csv(CACHED_CSV_FILE, encoding='utf-8')
+    except FileNotFoundError:
+        print("LỖI: Không tìm thấy file cached! Vui lòng chạy script save_data.py trước!")
+        exit()
+    
+    # Chia dữ liệu theo cột 'split' đã lưu
     df_train = df_all[df_all['split'] == 'train'].reset_index(drop=True)
     df_test = df_all[df_all['split'] == 'test'].reset_index(drop=True)
-    
-    print(f"   -> Tải xong: {len(df_train)} mẫu huấn luyện, {len(df_test)} mẫu kiểm tra.")
 
     # 3. Áp dụng Tiền xử lý và GAP cho Tập Huấn luyện
     print("3. Áp dụng tiền xử lý và GAP cho tập huấn luyện...")
