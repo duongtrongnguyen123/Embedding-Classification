@@ -1,5 +1,4 @@
 import os
-import multiprocessing as mp
 import random, torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,7 +12,7 @@ import time
 
 from data_pipe import (
     SkipGramPairsIterable, SkipGramDataset,
-    make_collate_fn, IterFactory   
+    make_collate_fn, IterFactory
 )
 
 
@@ -23,8 +22,8 @@ class SGNS(nn.Module):
         self.vocab_size = vocab_size
         self.dim = dim
         self.neg_k = neg_k
-        self.embed_in = nn.Embedding(vocab_size, dim, padding_idx=padding_idx)
-        self.embed_out = nn.Embedding(vocab_size, dim, padding_idx=padding_idx)
+        self.embed_in = nn.Embedding(vocab_size, dim, padding_idx=padding_idx, sparse=True)
+        self.embed_out = nn.Embedding(vocab_size, dim, padding_idx=padding_idx, sparse=True)
         nn.init.uniform_(self.embed_in.weight, -0.5/vocab_size, 0.5/vocab_size)
         nn.init.zeros_(self.embed_out.weight)
         p = counts.float().pow(0.75)
@@ -32,21 +31,19 @@ class SGNS(nn.Module):
         self.register_buffer("unigram75", p)
 
     @torch.no_grad()
-    def neg_sample(self, B, generator=None):
-        idx = torch.multinomial(self.unigram75, B*self.neg_k, replacement=True,generator=generator)
-        return idx.view(B, self.neg_k).to(dtype=torch.long, device=device)
-    
-    def forward(self, centers, pos, generator=None):
-        assert centers.dtype == torch.long and pos.dtype == torch.long
-        neg = self.neg_sample(centers.size(0), generator)
+    def neg_sample(self, B, generator=None, device=None):
+        with torch.cuda.amp.autocast(enabled=False):
+            idx = torch.multinomial(self.unigram75, B * self.neg_k,
+                                    replacement=True, generator=generator)
+        return idx.view(B, self.neg_k).to(device=device, dtype=torch.long)
+    def forward(self, centers, pos, generator=None, device=None):
+        neg = self.neg_sample(centers.size(0), generator, device)
         v_c = self.embed_in(centers)
         u_o = self.embed_out(pos)
         u_k = self.embed_out(neg)
 
         pos_score = (v_c * u_o).sum(dim=1)
-
-        neg_score = (u_k * v_c.unsqueeze(1)).sum(dim=-1)
-        #neg_score = torch.bmm(u_k, v_c.unsqueeze(2)).squeeze(2)
+        neg_score = torch.bmm(u_k, v_c.unsqueeze(2)).squeeze(2)
 
         return -(F.logsigmoid(pos_score) + F.logsigmoid(-neg_score).sum(dim=1)).mean()
     @torch.no_grad()
@@ -78,7 +75,7 @@ class SGNS(nn.Module):
 
 def evaluate(model: SGNS, word2id, id2word, wid=["man", "woman", "king", "queen", "happy", "good", "bad", "nice", "time"]):
     ids = [word2id[i] for i in wid]
-    cos, idx = model.most_similar(ids, 5, "input")
+    cos, idx = model.most_similar(ids, 5)
     for w, row_idx, row_val in zip(wid, idx, cos):
         print(f"Most similar to {w}:")
         for i, v in zip(row_idx, row_val):
@@ -108,11 +105,9 @@ class LossPlotter:
 
 
 if __name__ == "__main__":
-    mp.set_start_method("spawn", force=True)
-    
-
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     vocab_dir = os.path.join(curr_dir, "..", "data", "vocab.pt")
+
     vocab = torch.load(vocab_dir, map_location='cpu')
     print("loading vocab...")
     word2id = vocab["word2id"]
@@ -121,6 +116,7 @@ if __name__ == "__main__":
     count = vocab["count"]
     keep_probs = vocab["keep_probs"]
 
+    #keep_probs[word2id["<unk>"]] = 1        
     print("loaded vocab...")
 
     #numworker > 0 k goi ham long
@@ -136,33 +132,33 @@ if __name__ == "__main__":
     #numworker lon phai tang shards
     #numworker bottlenack
     loader = DataLoader(dataset, batch_size=32768, collate_fn=collate_fn,
-                        num_workers=2, pin_memory=False, persistent_workers=True, 
+                        num_workers=2, pin_memory=True, persistent_workers=True, 
                         prefetch_factor=4)  #pin_mem=True neu GPU      persistent True, prefector > 0 neu worker>0             
     valid_loader = DataLoader(valid_dataset, batch_size=32768, collate_fn=collate_fn,
-                              num_workers=1, pin_memory=False, persistent_workers=True,
+                              num_workers=1, pin_memory=True, persistent_workers=True,
                                 prefetch_factor=4)  #pin_mem=True neu GPU
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SGNS(len(word2id), neg_k=10, counts= counts, dim=256).to(device)
+    model = SGNS(len(word2id), neg_k=15, counts= counts, dim=192).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=5e-3)
 
     lossplot = LossPlotter()
 
     start = time.time()
     base_seed=111
-    for epoch in range(10):
+    for epoch in range(5):
         model.train()
         generator = torch.Generator(device=device).manual_seed(epoch+base_seed)
 
         train_loss = 0.0
         total_sample = 0
         for step, batch in enumerate(loader):
-            center = batch["center"]
-            pos = batch["pos"]
+            center = batch["center"].to(device, non_blocking=True)
+            pos = batch["pos"].to(device, non_blocking=True)
             B = center.shape[0]
             
             opt.zero_grad(set_to_none=True)
-            loss = model(center, pos, generator)      #loss:tensor
+            loss = model(center, pos, generator, device)      #loss:tensor
             loss.backward()
             opt.step()
             train_loss += loss.item() * B
@@ -185,7 +181,7 @@ if __name__ == "__main__":
             pos = batch["pos"]
             B = center.shape[0]
 
-            loss = model(center, pos, generator)
+            loss = model(center, pos, generator, device)
             valid_loss += loss.item() * B
             total_sample += B   
         valid_loss = valid_loss / total_sample
@@ -214,4 +210,5 @@ if __name__ == "__main__":
 
 
 
-#8/10
+
+#11/10
