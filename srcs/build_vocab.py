@@ -4,7 +4,7 @@ from collections import Counter
 import math
 import os
 
-from data_pipe import iter_wiki_sentences_for_compute_pairs, iter_wiki_sentences
+from data_pipe import iter_wiki_sentences
 
 import spacy 
 nlp = spacy.load("en_core_web_sm")
@@ -14,8 +14,25 @@ AUX = {"do","does","did","am","is","are","was","were","be","been","being",
        "may","might","must"}
 INTENS = {"really","very","quite","so","too","extremely","fairly","pretty",
           "rather","somewhat","kinda","sorta","at","all"}
+POS_PAIR = {("PROPN","PROPN"),("ADJ","NOUN"),("NOUN","NOUN"),("PROPN","NOUN"),("NOUN","PROPN")}
 
-def build_stas(token_iter: Iterable[str], min_count_bi: int=9,
+negate = {"no", "not", "never"}
+BAD_PART = {"not", "to"}
+common_words = [
+    "the","a","an","of","and","to","in","on","for","with","at","by","from",
+    "about","as","is","was","are","were","be","been","being",
+    "do","does","did","have","has","had",
+    "that","this","these","those","it","its",
+    "i","you","he","she","they","we","me","him","her","them","us",
+    "my","your","his","their","our",
+    "but","or","so","if","then",
+    "there","here","when","where","what","which","who","whom",
+    "gonna","gotta","wanna","lemme","gimme","imma","outta","kinda"
+]
+
+
+"""
+def build_pairs(token_iter: Iterable[str], min_count_bi: int=9,
                min_thres: int=2, top_k: int=3000):
     unigram = Counter()
     bigram = Counter()
@@ -23,20 +40,20 @@ def build_stas(token_iter: Iterable[str], min_count_bi: int=9,
     total_bi = 0
     unigram["<unk>"] = 0
     for sents in token_iter:
-        prev_tok = None
-        for tok in sents:
-            if prev_tok:
-                if (nlp(prev_tok)[0].pos_, nlp(tok)[0].pos_) in {("PROPN","PROPN"),("ADJ","NOUN"),("NOUN","NOUN"),("VERB","PART"),("PROPN","NOUN"),("NOUN","PROPN")}:
-                    bigram[(prev_tok, tok)] += 1
-                    prev_tok = None
-                elif prev_tok in ("no", "never", "not"): 
-                    if tok in AUX or tok in INTENS:
+        docs = nlp(sents)
+        for i in range(len(sents)):
+            if i >= 1:
+                if (docs[i-1].pos_, docs[i].pos_) in POS_PAIR:
+                    bigram[(sents[i-1], sents[i])] += 1
+                elif docs[i-1].pos_ == "VERB" and docs[i].pos_ == "PART" and sents[i] not in BAD_PART:
+                    bigram[(sents[i-1], sents[i])] += 1
+                elif sents[i-1] in negate:
+                    if sents[i] in AUX or sents[i] in INTENS:
                         continue
-                    bigram[(prev_tok, tok)] += 1
-                    prev_tok = None
-            unigram[tok] += 1
-            total_u += 1
-            prev_tok = tok
+                    bigram[(sents[i-1], sents[i])] += 1
+            unigram[sents[i]] += 1
+            
+            
     
     scored: list[tuple[float, tuple[str, str], int]] = []
     for (c1, c2), count_bi in bigram.item():
@@ -63,20 +80,21 @@ def build_stas(token_iter: Iterable[str], min_count_bi: int=9,
     
     top_pairs: set[tuple[str,str]] = {p for _,p,_ in scored}
     return unigram, total_u, bigram, total_bi, top_pairs
-    
+"""
 
 
 def build_vocab(token_iter: Iterable[str],
-                min_count=None, unigram: Counter=None, 
-                bigram: Counter=None, total_u: int=None, 
-                total_bi: int=None, specials: List[str]=None):
+                min_count=None, specials: List[str]=None):
     if specials is None:
         specials = ["<unk>"]
 
-    counts = Counter()
+    counter = Counter()
+    total = 0
     for sents in token_iter:
-
-
+        print(sents)
+        for tok in sents:
+            counter[tok] += 1
+            total += 1
 
 
     vocab = [w for w, i in counter.items() if i >= min_count]
@@ -118,9 +136,8 @@ if __name__ == "__main__":
     
 
     train_iter = iter_wiki_sentences("train")
-    #valid_iter = iter_wiki_tokens("validation")
-    #test_iter = iter_wiki_tokens("test")
 
+    
     word2id, id2word, counts, count, mask = build_vocab(train_iter, min_count=22, specials=["<unk>"])
     print(len(counts))
     print(len(word2id))
@@ -136,3 +153,4 @@ if __name__ == "__main__":
     
     torch.save(obj, save_path)
     print(f"saved vocab, length:{len(word2id)}")
+    

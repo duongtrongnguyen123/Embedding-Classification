@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import time
 
 #torch.set_num_threads(8)
-B, K, D = 4096, 15, 192   # batch size, số vector trong batch, dimension
+B, K, D = 8132, 15, 192   # batch size, số vector trong batch, dimension
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"B={B}   K={K}    D={D}")
 n = torch.randn(B, K, D, device=device)

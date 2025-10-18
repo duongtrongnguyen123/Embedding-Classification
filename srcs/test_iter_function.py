@@ -5,6 +5,7 @@ from collections import Counter
 from typing import Iterable
 
 import spacy 
+from spacy.tokens import Doc
 nlp = spacy.load("en_core_web_sm")
 
 negation = ("not", "no", "never")
@@ -19,6 +20,8 @@ AUX = {"do","does","did","am","is","are","was","were","be","been","being",
        "may","might","must"}
 INTENS = {"really","very","quite","so","too","extremely","fairly","pretty",
           "rather","somewhat","kinda","sorta","at","all"}
+POS_PAIR = {("PROPN","PROPN"),("ADJ","NOUN"),("NOUN","NOUN"),("PROPN","NOUN"),("NOUN","PROPN")}
+negate = {"not", "no", "never"}
 
 def iter(s: list):
     for i in s:
@@ -51,7 +54,7 @@ def expand_contraction(tok: str):
     return [t]
 
 END = {".", "!", "?"}
-
+BAD_PART = {"not", "to"}
 def _norm_token(tok: str) -> str:
     if tok.isdigit():
         if _year_re.fullmatch(tok):
@@ -83,7 +86,7 @@ def iter_wiki_sentences(s: str, top_pairs: set[str,str]=None):
         for st in expand_contraction(tok):
             st = _norm_token(st)
             if prev_tok: 
-                if prev_tok in ("not", "no", "never"):
+                if prev_tok in negation:
                     if st in AUX or st in INTENS:
                         continue 
                     if (prev_tok, st) in top_pairs:
@@ -107,34 +110,30 @@ def iter_wiki_sentences(s: str, top_pairs: set[str,str]=None):
 
 
 
-def build_stas(token_iter: Iterable[str], min_count_bi: int=0,
-               min_thres: int=0, top_k: int=50):
+def candidate_pairs(token_iter: Iterable[str], min_count_bi: int=9,
+               min_thres: int=2, top_k: int=3000):
     unigram = Counter()
     bigram = Counter()
     total_u = 0
     total_bi = 0
     unigram["<unk>"] = 0
-    prev_tok = None
-    for tok in token_iter:
-        if prev_tok:
-            if (nlp(prev_tok)[0].pos_, nlp(tok)[0].pos_) in {("PROPN","PROPN"),("ADJ","NOUN"),("NOUN","NOUN"),("VERB","PART"),("PROPN","NOUN"),("NOUN","PROPN")}:
-                bigram[(prev_tok, tok)] += 1
-                prev_tok = None
-                total_bi += 1
-                print("adding")
-            elif prev_tok in ("no", "never", "not"): 
-                if tok in AUX or tok in INTENS:
-                    continue
-                bigram[(prev_tok, tok)] += 1
-                prev_tok = None
-                total_u += 1
-                print("adding")
-        unigram[tok] += 1
-        total_u += 1
-        prev_tok = tok
-
+    for sents in token_iter:
+        for i in range(len(sents)):
+            if i >= 1:
+                if sents[i-1] in negate:
+                    j = i
+                    while sents[j] in AUX or sents[j] in INTENS and j < len(sents) - 1:
+                        j += 1
+                    bigram[(sents[i-1], sents[j])] += 1    
+                else: 
+                    bigram[(sents[i-1], sents[i])] += 1
+            unigram[sents[i]] += 1
+            
+    total_u = unigram.total()
+    total_bi = bigram.total()
+    
     scored: list[tuple[float, tuple[str, str], int]] = []
-    for (c1, c2), count_bi in bigram.items():
+    for (c1, c2), count_bi in bigram.item():
         if count_bi < min_count_bi:
             continue
 
@@ -146,11 +145,12 @@ def build_stas(token_iter: Iterable[str], min_count_bi: int=0,
         if de <= 0: 
             continue
 
-        ppmi = math.log2(p12 / de)
+        pmi = math.log2(p12 / de)
+    
 
-        if ppmi < min_thres:
+        if pmi < min_thres:
             continue
-        scored.append((ppmi, (c1, c2), count_bi))
+        scored.append((pmi, (c1, c2), count_bi))
 
     scored.sort(key=lambda x:(x[0], x[2 ]))
 
@@ -169,7 +169,7 @@ if __name__ == "__main__":
 
     ls = tokenize(s)
 
-    unigram, total_u, bigram, total_bi, top_pairs = build_stas(iter(ls))
+    unigram, total_u, bigram, total_bi, top_pairs = build_pairs(iter(ls))
 
     print(len(top_pairs))
     for u, v in top_pairs:

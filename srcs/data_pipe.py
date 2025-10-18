@@ -31,7 +31,7 @@ def normalize_text(s: str) -> str:
 def tokenize(s: str):
     if not s:
         return []
-    s = normalize_text(s)  
+    s = normalize_text(s)
     return _tok_re.findall(s.lower())
 
 
@@ -57,7 +57,7 @@ def _norm_token(tok: str) -> str:
         return "<century>"
     return tok
 
-def iter_wiki_sentences_for_compute_pairs(split, streaming=False):
+def iter_wiki_sentences(split, streaming=False):
     ds = load_dataset("wikitext", "wikitext-103-raw-v1", split=split, streaming=streaming)
     sent = []
 
@@ -88,6 +88,9 @@ def iter_wiki_sentences_for_compute_pairs(split, streaming=False):
     for s in flush():
         yield s
 
+
+
+"""
 def iter_wiki_sentences(split, streaming=False, top_pairs: set[str,str]=None):
     ds = load_dataset("wikitext", "wikitext-103-raw-v1", split=split, streaming=streaming)
     sent = []
@@ -137,7 +140,7 @@ def iter_wiki_sentences(split, streaming=False, top_pairs: set[str,str]=None):
     for s in flush():
         yield s
 
-
+"""
 
 
 
