@@ -1,6 +1,10 @@
 from libcpp.unordered_map cimport unordered_map
 from libcpp.set cimport set
 from cython.operator cimport dereference as deref, preincrement as inc
+from libc.string cimport memcpy
+from libcpp.vector cimport vector
+from libc.stdio cimport FILE, fopen, fclose, fwrite
+from libc.errno cimport errno
 
 cimport cython
 from libc.math cimport log, fmax
@@ -27,6 +31,33 @@ BAD_PART = {"not", "to"}
 cdef inline u64 pair_id_encode(u32 a, u32 b) nogil:
     return ((<u64>a) << 32) | (<u64>b)
 
+
+
+cdef void save_corpus(const vector[u32]& o_encode, const vector[u32]& sizes, const char* path) except*:
+    cdef FILE* fp = fopen(path, "wb")
+    if fp == NULL:
+        raise OSError(errno, "fail open for write")
+    cdef u32 n_encode = <u32> o_encode.size()
+    cdef u32 n_size   = <u32> sizes.size()
+    
+    if fwrite(&n_encode, sizeof(u32), 1, fp) != 1:
+        raise OSError(errno, "cant write")
+    if fwrite(&o_encode[0], sizeof(u32), n_encode, fp) != n_encode:
+        raise OSError(errno, "cant write")
+
+    if fwrite(&n_size, sizeof(u32), 1, fp) != 1:
+        raise OSError(errno, "cant write")
+    if fwrite(&sizes[0], sizeof(u32), n_size, fp) != n_size:
+        raise OSError(errno, "cant write")
+
+    if fclose(fp) != 0:
+        raise OSError(errno, "cant close after write")
+    print("write done !!!")
+
+
+
+
+
 def iter_sentences(object s):
     cdef list out = []
     for i in s:
@@ -36,50 +67,61 @@ def iter_sentences(object s):
         else:
             out.append(i)
 
-def first_pass(object iter, int top_k, int min_pair_count):
-    # map ca word2id de truy cap unigram va bigram nhanh 
+def first_pass(object iter, int top_k, int min_pair_count, object to_save_path):
+    # map ca word2id de truy cap unigram va bigram nhanh
     cdef dict o_word2id = {}
     cdef list o_id2word = []
-    cdef cnp.ndarray[cnp.uint32_t, ndim=1] unigram = np.zeros(600000, dtype=np.uint32)
+    cdef cnp.ndarray[cnp.uint32_t, ndim=1] unigram = np.zeros(600000, dtype=np.uint32)  # Full vocab only 580k
     cdef unordered_map[u64, u32] bigram
-    
-    cdef object sents, w, tok, obj
-    cdef i32 prev_idx = 0, i, n
-    cdef u32 idx
-    cdef u64 pair_idx
+    cdef vector[u32] o_encode
+    cdef vector[u32] o_sents
+    o_encode.reserve(600000)
+
+    cdef object sents, w, obj        #sents:sentence, w: word, obj: map cua word2id 
+    cdef i32 prev_id = -1, i, n      #prev_id: prev_word's id, i index in array, n = length of sent
+    cdef u32 id                      #id: word's id
+    cdef u64 pair_id                 #encode pair_id  
 
     for sents in iter:
         n = len(sents)
         i = 0
-        prev_idx = -1
-        while i < len(sents):
+        prev_id = -1
+        o_sents.push_back(n)
+        while i < n:
             w = sents[i]
             obj = o_word2id.get(w, None)
             if obj is None:
-                idx = <u32> len(o_word2id)
-                o_word2id[w] = idx
+                id = <u32> len(o_word2id)
+                o_word2id[w] = id
                 o_id2word.append(w)
             else:
-                idx = <u32> obj
-            unigram[idx] += 1
-            if prev_idx != -1:
-                if o_id2word[prev_idx] in negate:
+                id = <u32> obj
+            o_encode.push_back(id)
+            unigram[id] += 1
+            if prev_id != -1:
+                if o_id2word[prev_id] in negate:
                     while i < n - 1 and (sents[i] in AUX or sents[i] in INTENS):
                         i += 1
                         w = sents[i]
                         obj = o_word2id.get(w, None)
                         if obj is None:
-                            idx = <u32> len(o_word2id)
+                            id = <u32> len(o_word2id)
                             o_id2word.append(w)
-                            o_word2id[w] = idx
+                            o_word2id[w] = id
                         else: 
                             idx = <u32> obj
-                    
-                pair_idx = pair_id_encode(prev_idx, idx)
-                bigram[pair_idx] += 1       
-            prev_idx = idx
+                        unigram[id] += 1
+                        o_encode.push_back(id)
+                pair_idx = pair_id_encode(prev_id, id)
+                bigram[pair_id] += 1       
+            prev_id = id
             i += 1
-    
+
+    save_corpus(o_encode, o_sents, str(to_save_path).encode("utf-8"))
+
+
+
+
     cdef u32 total_bi = 0
     cdef unordered_map[u64, u32].iterator it = bigram.begin()
     while it != bigram.end():
@@ -90,35 +132,46 @@ def first_pass(object iter, int top_k, int min_pair_count):
 
     total_u = unigram.sum() 
     cdef u32 count
-    cdef u32 c1_idx, c2_idx
+    cdef u32 c1_id, c2_id
     cdef list scored = []
     while it != bigram.end():
-        pair_idx = deref(it).first
-        count    = deref(it).second
+        pair_id = deref(it).first
+        count   = deref(it).second
         if count < min_pair_count:
             it = inc(it)
             continue
-        p12 = count / total_bi
-        c1_idx = <u32> (pair_idx >> 32)
-        c2_idx = <u32> (pair_idx) 
-        p1 = unigram[c1_idx] / total_u
-        p2 = unigram[c2_idx] / total_u
+        p12 = <double> count / <double> total_bi
+        c1_id = <u32> (pair_id >> 32)
+        c2_id = <u32> (pair_id) 
+        if (o_id2word[c1_id] == "not"):
+            scored.append((1000, pair_id, count))          #luon pass
+            it = inc(it)
+            continue
+
+        p1 = <double> unigram[c1_id] / <double> total_u
+        p2 = <double> unigram[c2_id] / <double> total_u
 
         de = p1 * p2
         if de <= 0:
+            it = inc(it)
             continue
-        pmi = fmax(0, log(p12 / de)) 
-        scored.append((float(pmi), pair_idx, count)) 
+        pmi = fmax(0, log(p12 / de))
+        if pmi < 3:
+            it = inc(it)
+            continue
+        scored.append((float(pmi), pair_id, count)) 
         inc(it)
         
     top = heapq.nlargest(top_k, scored, key=lambda x: (x[0], x[2]))
-    result = [x[1] for x in top]
+    result = [(x[1], x[2]) for x in top]
+  
 
 
     return unigram, result, o_id2word, o_word2id
 
   
-def build_vocab(cnp.ndarray[cnp.uint32_t, ndim=1] unigram, list scored, list o_id2word, dict o_word2id, int min_count):
+def build_vocab(cnp.ndarray[cnp.uint32_t, ndim=1] unigram, 
+                list o_id2word, dict o_word2id, int min_count):
 
     mask = unigram >= min_count 
     cand_idx = np.nonzero(mask)[0] 

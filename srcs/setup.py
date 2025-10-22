@@ -2,18 +2,26 @@ from setuptools import setup, Extension
 from Cython.Build import cythonize
 import numpy as np
 
-ext = Extension(
-    "fast_count",                        
-    sources=["fast_count.pyx"], 
-    language="c++",                      
-    include_dirs=[np.get_include()],
-    extra_compile_args=["-O3", "-std=c++17"],
-    extra_link_args=["-std=c++17"],
-    define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-)
+
+
+exts = [
+    Extension(
+        "fast_count",
+        ["fast_count.pyx"],
+        language="c++",
+        include_dirs=[np.get_include()],
+        extra_compile_args=["-O3", "-std=c++17"],
+    ),
+    Extension(
+        "encode_corpus",
+        ["encode_corpus.pyx"],
+        language="c++",
+        include_dirs=[np.get_include()],
+        extra_compile_args=["-O3", "-std=c++17"],
+    ),
+]
 
 setup(
-    name="fast_count",
-    ext_modules=cythonize(ext, language_level="3"),
+    name="corpus_pipeline",
+    ext_modules=cythonize(exts, language_level="3"),
 )
-

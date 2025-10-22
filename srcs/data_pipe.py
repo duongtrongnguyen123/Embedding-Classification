@@ -90,58 +90,6 @@ def iter_wiki_sentences(split, streaming=False):
 
 
 
-"""
-def iter_wiki_sentences(split, streaming=False, top_pairs: set[str,str]=None):
-    ds = load_dataset("wikitext", "wikitext-103-raw-v1", split=split, streaming=streaming)
-    sent = []
-
-    def flush():
-        nonlocal sent
-        if sent:
-            yield list(sent)
-            sent.clear()
-
-    for ex in ds:
-        t = ex["text"]
-        if not t or not t.strip():
-            #co the bo
-            for s in flush():
-                yield s
-            continue
-        
-
-        prev_tok = None
-
-        for tok in tokenize(t):
-            if tok in END:
-                for s in flush():
-                    yield s
-                continue
-            
-            
-            for st in expand_contraction(tok):
-                st = _norm_token(st)
-                if prev_tok: 
-                    if prev_tok in ("not", "no", "never"):
-                        if st in AUX or st in INTENS:
-                            continue 
-                        if (prev_tok, st) in top_pairs:
-                            sent.append(prev_tok+"_"+st)
-                            prev_tok = None
-                            continue
-                    if (prev_tok, st) in top_pairs:
-                        sent.append(prev_tok+"_"+st)
-                        prev_tok = None
-                        continue
-                sent.append(st)
-                prev_tok = st
-
-
-    for s in flush():
-        yield s
-
-"""
-
 
 
 """  123
