@@ -1,3 +1,6 @@
+# cython: language_level=3, boundscheck=False, wraparound=False
+
+from cpython.object cimport PyObject, PyCallable_Check 
 from libcpp.unordered_map cimport unordered_map
 from libcpp.set cimport set
 from cython.operator cimport dereference as deref, preincrement as inc
@@ -5,6 +8,10 @@ from libc.string cimport memcpy
 from libcpp.vector cimport vector
 from libc.stdio cimport FILE, fopen, fclose, fwrite
 from libc.errno cimport errno
+
+import sys, time
+from itertools import chain
+
 
 cimport cython
 from libc.math cimport log, fmax
@@ -52,8 +59,6 @@ cdef void save_corpus(const vector[u32]& o_encode, const vector[u32]& sizes, con
 
     if fclose(fp) != 0:
         raise OSError(errno, "cant close after write")
-    print("write done !!!")
-
 
 
 
@@ -67,28 +72,29 @@ def iter_sentences(object s):
         else:
             out.append(i)
 
-def first_pass(object iter, int top_k, int min_pair_count, object to_save_path):
+def first_pass(object ite, int top_k, int min_pair_count, object to_save_path):
+
     # map ca word2id de truy cap unigram va bigram nhanh
     cdef dict o_word2id = {}
     cdef list o_id2word = []
     cdef cnp.ndarray[cnp.uint32_t, ndim=1] unigram = np.zeros(600000, dtype=np.uint32)  # Full vocab only 580k
     cdef unordered_map[u64, u32] bigram
     cdef vector[u32] o_encode
-    cdef vector[u32] o_sents
+    cdef vector[u32] o_sizes
     o_encode.reserve(600000)
 
-    cdef object sents, w, obj        #sents:sentence, w: word, obj: map cua word2id 
-    cdef i32 prev_id = -1, i, n      #prev_id: prev_word's id, i index in array, n = length of sent
-    cdef u32 id                      #id: word's id
+    cdef object sent, w, obj        #sents:sentence, w: word, obj: map cua word2id 
+    cdef i32 prev_id = -1, n      #prev_id: prev_word's id, i index in array, n = length of sent
+    cdef u32 i, id                      #id: word's id
     cdef u64 pair_id                 #encode pair_id  
 
-    for sents in iter:
-        n = len(sents)
+    for sent in ite:
+        n = len(sent)
         i = 0
         prev_id = -1
-        o_sents.push_back(n)
+        o_sizes.push_back(n)
         while i < n:
-            w = sents[i]
+            w = sent[i]
             obj = o_word2id.get(w, None)
             if obj is None:
                 id = <u32> len(o_word2id)
@@ -100,9 +106,9 @@ def first_pass(object iter, int top_k, int min_pair_count, object to_save_path):
             unigram[id] += 1
             if prev_id != -1:
                 if o_id2word[prev_id] in negate:
-                    while i < n - 1 and (sents[i] in AUX or sents[i] in INTENS):
+                    while i < n - 1 and (sent[i] in AUX or sent[i] in INTENS):
                         i += 1
-                        w = sents[i]
+                        w = sent[i]
                         obj = o_word2id.get(w, None)
                         if obj is None:
                             id = <u32> len(o_word2id)
@@ -117,7 +123,7 @@ def first_pass(object iter, int top_k, int min_pair_count, object to_save_path):
             prev_id = id
             i += 1
 
-    save_corpus(o_encode, o_sents, str(to_save_path).encode("utf-8"))
+    save_corpus(o_encode, o_sizes, str(to_save_path).encode("utf-8"))
 
 
 
@@ -165,9 +171,33 @@ def first_pass(object iter, int top_k, int min_pair_count, object to_save_path):
     top = heapq.nlargest(top_k, scored, key=lambda x: (x[0], x[2]))
     result = [(x[1], x[2]) for x in top]
   
-
-
     return unigram, result, o_id2word, o_word2id
+
+
+def save_valid_encode(object iter, dict o_word2id, object to_save_path):
+    cdef vector[u32] o_encode
+    cdef vector[u32] o_sizes
+
+    cdef u32 id 
+    cdef object sent, w, obj
+    cdef u32 n, i
+    cdef u32 count
+    for sent in iter:
+        n = len(sent)
+        count = 0
+        for i in range(n):
+            obj = o_word2id.get(sent[i], None)
+            if obj is None: 
+                continue
+            id = <u32> obj
+            count += 1
+            o_encode.push_back(id)
+        o_sizes.push_back(count)
+
+    save_corpus(o_encode, o_sizes, str(to_save_path).encode("utf-8"))
+
+
+
 
   
 def build_vocab(cnp.ndarray[cnp.uint32_t, ndim=1] unigram, 
@@ -196,18 +226,7 @@ def build_vocab(cnp.ndarray[cnp.uint32_t, ndim=1] unigram,
     return old2new, n_word2id, n_id2word, n_counts
 
     
-if __name__ == "__main__":
     
-
-    """
-    train_iter = iter_sentences(str) 
-    unigram, scored, o_id2word, o_word2id = first_pass(train_iter, top_k=5000, min_pair_count=0)
-    
-    
-    old2new, word2id, id2word, counts = build_vocab(unigram, scored, o_id2word, o_word2id, min_count=22)
-    """  
- 
-        
 
 
 

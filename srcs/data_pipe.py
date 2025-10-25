@@ -92,52 +92,7 @@ def iter_wiki_sentences(split, streaming=False):
 
 
 
-"""  123
 
-def iter_wiki_tokens(split, streaming=False,):
-    ds = load_dataset("wikitext", "wikitext-103-raw-v1",
-                      split=split, streaming=streaming)
-
-    for ex in ds:
-        t = ex["text"]
-        if not t or not t.strip():    
-            yield EOS
-            continue
-
-        for tok in tokenize(t):
-            if tok in {".", "!", "?"}:
-                yield EOS
-                continue
-            if tok.isdigit():
-                if _year_re.fullmatch(tok):
-                    yield "<year>" 
-                elif len(tok) <= 1:
-                    yield "<digits>" 
-                else: yield "<nums>"
-                continue
-            if tok in ROMAN_SMALL:
-                yield "<century>"
-            for st in expand_contraction(tok):
-                if st and keep_token(st):
-                    yield st
-"""
-
-
-
-
-
-"""  12
-_tok_re = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?|[A-Za-z]+(?:-[A-Za-z]+)+|\d+|[.!?]|[,;:()\"“”’‘\[\]{}]")
-EOS = "<eos>" #endofse
-_year_re    = re.compile(r"^(1|2)\d{3}$")
-DROP = {",",";",":","(",")","\"","“","”","’","‘","[","]","{","}"}
-
-
-def tokenize(s: str):
-    if not s:
-        return []
-    return _tok_re.findall(s.lower())
-"""
 
 
 """ 123

@@ -53,7 +53,7 @@ tokens = [
     "this","cycle","repeated","each","day","binding","generations","together","with","routine","memory","and","hope","for","tomorrow","."
 ]
 pairs_tokens = [
-    "machine","learning","is","popular","in","many","fields",".",
+    "machine","learning","is","nigga","popular","in","many","fields",".",
     "deep","learning","is","a","subfield","of","machine","learning",".",
     "data","science","not","really","often","uses","machine","learning","methods","here",".",
     "artificial","intelligence","includes","machine","learning","and","deep","learning",".",
@@ -120,6 +120,36 @@ not_check = [
 ]
 
 
+words = [
+    "yesterday", "the", "movie", "festival", "opened", "downtown", "and", "the", "movie", "reviews", "were", "good", "overall", "with", "strong", "acting", "and", "clean", "editing", ".",
+    "our", "coffee", "shop", "tested", "a", "new", "roast", "and", "the", "customer", "service", "was", "good", "while", "the", "music", "playlist", "felt", "cozy", ".",
+    "the", "product", "launch", "highlighted", "battery", "life", "and", "camera", "quality", "and", "the", "user", "experience", "looked", "good", "during", "the", "demo", ".", 
+    ".",                                  #test empty sents 
+    "she", "built", "a", "machine", "learning", "model", "on", "a", "clean", "data", "pipeline", "and", "the", "validation", "result", "was","not", "good", "for", "early", "metrics", "not", "so", ".",  #test 'not'
+    "signal", "processing", "processing", "notes", "signal", "processing", "signal", "processing", "signal", "connected", "fourier", "series", "to", "neural", "network", "intuition", "and", "the", "matrix", "calculus", "derivation", "was", "clear", "and", "good", ".",              #test duplicate
+    "the", "stock", "market", "was","not", "quiet", "but", "foreign", "exchange", "volume", "spiked", "after", "policy", "news", "and", "several", "desks", "reported", "good", "liquidity", ".",                       #test 'not'
+    "climate", "change", "policy", "appeared", "in", "several", "panels", "and", "the", "public", "discussion", "was", "good", "and", "surprisingly", "calm", ".",
+    "later", "that", "night", "the", "game", "studio", "showed", "concept", "art", "and", "the", "game", "mechanics", "looked", "good", "with", "steady", "frame", "time", ".",
+    "the", "research", "team", "cleaned", "labels", "and", "rebuilt", "the", "data", "pipeline", "so", "ingestion", "was", "reliable", "and", "the", "training", "curve", "looked", "good", ".",
+    "our", "support", "desk", "improved", "customer", "service", "scripts", "and", "people", "said", "response", "time", "was", "good", "even", "during", "peak", "hours", ".",
+    "the", "presentation", "explained", "neural", "network", "regularization", "and", "linked", "it", "to", "signal", "processing", "ideas", "and", "the", "examples", "were", "good", ".",
+    "she", "visited", "a", "book", "fair", "and", "the", "story", "selection", "was", "good", "with", "fresh", "authors", "and", "clear", "themes", ".",
+    "the", "teacher", "ran", "a", "workshop", "on", "matrix", "calculus", "and", "the", "exercises", "were", "good", "practice", "for", "gradients", "and", "hessians", ".",
+    "they", "tested", "a", "new", "router", "and", "wifi", "coverage", "was", "good", "throughout", "the", "apartment", "except", "one", "corner", ".",
+    "our", "friend", "organized", "a", "film", "night", "and", "the", "movie", "soundtrack", "was", "good", "and", "people", "stayed", "late", "to", "chat", ".",
+    "the", "battery", "life", "on", "the", "laptop", "was", "good", "after", "tuning", "background", "apps", "and", "disabling", "heavy", "animations", ".",
+    "the", "editor", "added", "grammar", "checks", "so", "the", "user", "experience", "felt", "smooth", "and", "the", "final", "layout", "looked", "good", ".",
+    "our", "prototype", "game", "needed", "balancing", "but", "the", "core", "mechanics", "were", "good", "and", "players", "liked", "the", "pacing", ".",
+    "the", "restaurant", "menu", "was", "diverse", "and", "the", "service", "was", "good", "even", "with", "a", "full", "house", ".",
+    "a", "short", "review", "said", "the", "story", "arc", "was", "good", "but", "the", "ending", "felt", "rushed", ".",
+    "for", "the", "hackathon", "she", "paired", "a", "neural", "network", "with", "a", "signal", "processing", "frontend", "and", "the", "demo", "looked", "good", ".",
+    "the", "public", "garden", "planted", "new", "flowers", "and", "the", "weekend", "crowd", "was", "good", "natured", "and", "patient", ".",
+    "he", "was", "not", "really", "tired", "and", "kept", "coding", "until", "midnight", "because", "the", "debugging", "progress", "was", "good", ".",
+    "i", "took", "notes", "on", "foreign", "exchange", "microstructure", "and", "the", "liquidity", "session", "was", "good", "for", "practical", "tricks", ".",
+    "the", "museum", "audio", "guide", "was", "clear", "and", "the", "visitor", "flow", "was", "good", "even", "with", "two", "tour", "groups", ".",
+    "she", "brought", "a", "camera", "and", "the", "image", "stabilization", "was", "good", "during", "night", "shots", ".",
+    "our", "local", "coffee", "shop", "added", "seats", "outside", "and", "the", "customer", "service", "remained", "good", "during", "rain", "."
+]
 
 
 
@@ -181,36 +211,37 @@ def encode_with_py(iter, o_word2id, old2new, old2new_for_pair, id2word):
     sent_size = []
     skip_id = aux_intens_id(o_word2id, AUX, INTENS)
     not_id = o_word2id["not"] 
+    prev_in_negate = False
     for sents in iter:
         out = []
         prev_id = -1
-        i = 0  
-        while i < len(sents):
-            o_id = o_word2id.get(sents[i])
+        for i in range(len(sents)):
+            o_id = o_word2id.get(sents[i], None)
             new_id = old2new[o_id]
             if new_id < 0:
+                if not prev_in_negate:
+                    prev_id = -1
                 continue
 
             if prev_id != -1:
                 if prev_id == not_id:
-                    while o_id in skip_id:
-                        i += 1
-                        o_id = o_word2id.get(sents[i])
-                        
+                    prev_in_negate = (prev_id == not_id)
+                    if prev_in_negate and o_id in skip_id:
+                        continue
                 pair_id = (np.int64(prev_id) << 32) | np.int64(o_id)
-                print(format(pair_id, '64b'))
                 obj = old2new_for_pair.get(pair_id, None)
                 if obj is not None:
                     n_pair_id = int(obj)
-                    print(id2word[n_pair_id])
                     out.pop()
                     out.append(n_pair_id)
+                    prev_id = -1
+                    prev_in_negate = False
+                    continue
                 else:
                     out.append(new_id.item())
             else:
                 out.append(new_id.item())
             prev_id = o_id
-            i += 1
         ids_bin.append(out)
         sent_size.append(len(out))
     return ids_bin, sent_size
@@ -225,12 +256,12 @@ if __name__ == "__main__":
 
     os.makedirs(os.path.dirname(to_save_vocab_dir), exist_ok=True)
 
-    train_iter = iter_sentences(pairs_tokens) 
+    train_iter = iter_sentences(words) 
     unigram, top_pairs, o_id2word, o_word2id = first_pass(train_iter, top_k=200, min_pair_count=0, to_save_path=to_save_corpus_dir)
    
  
      
-    old2new, word2id, id2word, counts = build_vocab(unigram, o_id2word, o_word2id, min_count=1)
+    old2new, word2id, id2word, counts = build_vocab(unigram, o_id2word, o_word2id, min_count=2)
     
         
 
@@ -247,9 +278,13 @@ if __name__ == "__main__":
         old_id1, old_id2 = pair_id_decode(pair_id)
         new_id1 = old2new[old_id1]
         new_id2 = old2new[old_id2]
+        v = (id2word[new_id1] == "signal" and id2word[new_id2] == "processing")
+        if v: 
+            print("catch here")
         if new_id1 == -1 or new_id2 == -1:
             continue
-
+        if v:
+            print("catch here")
         a = (pos_arr[new_id1], pos_arr[new_id2]) in POS_PAIR 
         b = (id2word[new_id1] in negate)  
         c = (pos_arr[new_id1] == "VERB" and pos_arr[new_id2] == "PART" and id2word[new_id2] not in BAD_PART)
@@ -261,7 +296,6 @@ if __name__ == "__main__":
             pos_arr_for_pair.append("VERB")
         else:
             continue
-
         merge_word = id2word[new_id1] + "_" + id2word[new_id2]
         idx = len(id2word)
         id2word.append(merge_word)
@@ -279,14 +313,14 @@ if __name__ == "__main__":
     
    
 
-    iter = iter_sentences(pairs_tokens)
+    iter = iter_sentences(words)
     ids_bin, sent_size = encode_with_py(iter, o_word2id, old2new, old2new_for_pair, id2word)
     print(ids_bin[:10])
     for arr in ids_bin:
         words = [id2word[s] for s in arr]
         print(words)
         
-    print(word2id["artificial_intelligence"])
+    #print(word2id["artificial_intelligence"])
     
 
     bundle = {

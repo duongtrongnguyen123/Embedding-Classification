@@ -20,9 +20,9 @@ INTENS = {"really","very","quite","so","too","extremely","fairly",
 
 
 pairs_tokens = [
-    "machine","learning","is","popular","in","many","fields",".",
+    "machine","learning","is","nigga","popular","in","many","fields",".",
     "deep","learning","is","a","subfield","of","machine","learning",".",
-    "data","science","not","really","often","uses","machine","learning","methods","here",".",
+    "data","science","not","really","quite", "often","uses","machine","learning","methods","here",".",
     "artificial","intelligence","includes","machine","learning","and","deep","learning",".",
     "neural","networks","are","the","basis","of","deep","learning",".",
     "python","is","commonly","used","for","machine","learning","and","data","science",".",
@@ -100,9 +100,9 @@ if __name__ == "__main__":
     old2new_for_pair = vocab["old2new_for_pair"]
     skip_id = get_aux_intens_id(o_word2id, AUX, INTENS)
     negate_id = get_negate_id(o_word2id, negate)
-    
+    id2word = vocab["id2word"] 
 
-    encode_corpus(old2new, negate_id, skip_id, old2new_for_pair, saved_corpus_dir, to_save_corpus_dir)
+    encode_corpus(old2new, negate_id, skip_id, old2new_for_pair, saved_corpus_dir, to_save_corpus_dir, id2word)
 
     
 

@@ -89,9 +89,9 @@ cdef void save_corpus(const vector[u32]& new_encode,
 cdef _encode_corpus(cnp.ndarray[int32_t, ndim=1] old2new,
             set negate_id,                      # set of negate' s old id
             set skip_id,                        # set of skip_word's old id
-            dict old2new_for_pair,
+            dict old2new_for_pair,              # pair id 2 new id 
             object load_path,
-            object to_save_path):             # pair id 2 new id
+            object to_save_path):    
     cdef vector[u32] o_encode
     cdef vector[u32] o_sizes 
 
@@ -102,14 +102,14 @@ cdef _encode_corpus(cnp.ndarray[int32_t, ndim=1] old2new,
     cdef unordered_set[u32] negate_id_std = build_set(negate_id)
     cdef unordered_map[u64, u32] o2n_for_pair_std = build_map(old2new_for_pair)
     load_corpus(o_encode, o_sizes, str(load_path).encode("utf-8"))
-    cdef unordered_map[u64,u32].iterator it = o2n_for_pair_std.begin()
+    cdef unordered_set[u32].iterator it = negate_id_std.begin()
 
     #idx for index in array, id for word's id
     cdef i32 prev_id, n_id                     #prev old_id (old vocab)
     cdef u32 o_id                              #old id
     cdef size_t cur_idx = 0
     cdef size_t o_sent_length, n_sent_length
-    cdef u64 o_pair_id                          #encode form by old id
+    cdef u64 o_pair_id                          #encode merge by old id
     cdef bool prev_in_negate = False            
     cdef size_t i, j
     for i in range(len(o_sizes)):
@@ -133,10 +133,10 @@ cdef _encode_corpus(cnp.ndarray[int32_t, ndim=1] old2new,
                     j += 1
                     continue
                 
-                pair_id = encode_pair_id(prev_id, o_id)
-                if o2n_for_pair_std.find(pair_id) != o2n_for_pair_std.end():
+                o_pair_id = encode_pair_id(prev_id, o_id)
+                if o2n_for_pair_std.find(o_pair_id) != o2n_for_pair_std.end():
                     n_encode.pop_back()
-                    n_encode.push_back(o2n_for_pair_std[pair_id])
+                    n_encode.push_back(o2n_for_pair_std[o_pair_id])
                     prev_id = -1
                     prev_in_negate = False
                     j += 1
@@ -154,15 +154,9 @@ cdef _encode_corpus(cnp.ndarray[int32_t, ndim=1] old2new,
         cur_idx += o_sent_length
         n_sizes.push_back(n_sent_length)                          
        
-    cur_idx = 0
-    for i in range(len(n_sizes)):
-        for j in range(n_sizes[i]):
-            print(n_encode[cur_idx+j], end=" ")
-        cur_idx += n_sizes[i]
-        print("")
+    
     
     save_corpus(n_encode, n_sizes, str(to_save_path).encode("utf-8"))
-
 
 def encode_corpus(cnp.ndarray[int32_t, ndim=1] old2new,
             set negate_id,                      # set of negate' s old id
