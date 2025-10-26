@@ -116,8 +116,6 @@ class LogisticRegressionScratch:
         rng = np.random.default_rng(self.random_state)
 
         for epoch in range(self.n_iters):
-            #print(f"Epoch {epoch+1}/{self.n_iters}")  # Thêm dòng này để debug
-
             if self.batch_size is None or self.batch_size > X_train.shape[0]:
                 batches = [(X_train, y_train, sw_tr)]
             else:
