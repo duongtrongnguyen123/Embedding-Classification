@@ -25,7 +25,6 @@ class SkipGramPairIterable(IterableDataset):
 
         self.encode, self.sizes = self._open_memmaps()
         self.save_starts_path = save_starts_path if save_starts_path is not None else self._compute_starts(self.sizes)
-        #self.save_starts_path = self._compute_starts(self.sizes)
 
 
     def _open_memmaps(self):

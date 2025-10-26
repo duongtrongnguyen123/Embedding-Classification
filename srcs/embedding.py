@@ -14,16 +14,6 @@ from data_pipe import iter_wiki_sentences
 from data_pipe_ids import SkipGramPairIterable
 from iter_data  import train_iter_review_sentences, valid_iter_review_sentences
 
-enhance = [
-"excellent","outstanding","masterpiece","brilliant","moving","gripping","heartfelt",
-"charming","delightful","hilarious","clever","smart","entertaining","engaging",
-"compelling","impressive","top-notch","superb","well-acted","well-written","must-watch",
-"mustsee","rewatchable","worth-watching","underrated","believable","nuanced","satisfying",
-"awful","terrible","horrible","dreadful","boring","dull","uneven","messy","incoherent",
-"cliché","cliched","cringe","cringey","wooden","flat","shallow","pretentious",
-"disappointing","forgettable","overrated","underwritten","tedious","unfunny","predictable",
-"derivative","waste","pointless"
-]
 
 class SGNS(nn.Module):
     def __init__(self, vocab_size=None,*, neg_k=10, dim: int=None, counts: torch.Tensor=None, padding_idx=None):
@@ -113,13 +103,6 @@ class LossPlotter:
         plt.pause(0.01)
 
 
-def enhnce(word2id, counts):
-    for w in enhance:
-        id = word2id.get(w, None)
-        if w is not None:
-            counts[id] += 200
-
-
 
 
 if __name__ == "__main__":
@@ -138,15 +121,14 @@ if __name__ == "__main__":
     keep_probs = vocab["keep_probs"]
     keep_probs[word2id["abd"]] = 0.001
     keep_probs[word2id["yuk"]] = 0.001
-    enhnce(word2id, counts)
     print("loaded vocab...")
     model = SGNS(len(id2word), neg_k=15, counts= counts, dim=256).to(device)
     opt = torch.optim.AdamW(
         model.parameters(),
-        lr=1e-4,           # or whatever base LR you want
-        betas=(0.9, 0.99), # smoother 2nd moment
-        eps=1e-8,          # stability term
-        weight_decay=1e-5  # helps control embedding norm growth)
+        lr=1e-4,        
+        betas=(0.9, 0.99),
+        eps=1e-8,         
+        weight_decay=1e-5  
 )
 
     lossplot = LossPlotter()
@@ -212,5 +194,5 @@ if __name__ == "__main__":
 
         valid_loss = valid_loss / total_sample
         evaluate(model, word2id, id2word)
-        print(f"different: {train_loss-valid_loss}")
+        print(f"diff: {train_loss-valid_loss}")
         #lossplot.update(epoch, train_loss, valid_loss)

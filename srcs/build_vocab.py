@@ -31,58 +31,6 @@ common_words = [
 ]
 
 
-"""
-def build_pairs(token_iter: Iterable[str], min_count_bi: int=9,
-               min_thres: int=2, top_k: int=3000):
-    unigram = Counter()
-    bigram = Counter()
-    total_u = 0
-    total_bi = 0
-    unigram["<unk>"] = 0
-    for sents in token_iter:
-        docs = nlp(sents)
-        for i in range(len(sents)):
-            if i >= 1:
-                if (docs[i-1].pos_, docs[i].pos_) in POS_PAIR:
-                    bigram[(sents[i-1], sents[i])] += 1
-                elif docs[i-1].pos_ == "VERB" and docs[i].pos_ == "PART" and sents[i] not in BAD_PART:
-                    bigram[(sents[i-1], sents[i])] += 1
-                elif sents[i-1] in negate:
-                    if sents[i] in AUX or sents[i] in INTENS:
-                        continue
-                    bigram[(sents[i-1], sents[i])] += 1
-            unigram[sents[i]] += 1
-            
-            
-    
-    scored: list[tuple[float, tuple[str, str], int]] = []
-    for (c1, c2), count_bi in bigram.item():
-        if count_bi < min_count_bi:
-            continue
-
-        p12 = count_bi / total_bi
-        p1 = unigram[c1] / total_u
-        p2 = unigram[c2] / total_u
-        de = p1 * p2
-
-        if de <= 0: 
-            continue
-
-        ppmi = math.log2(p12 / de)
-
-        if ppmi < min_thres:
-            continue
-        scored.append((ppmi, (c1, c2), count_bi))
-
-    scored.sort(key=lambda x:(x[0], x[2 ]))
-
-    scored = scored[:top_k]
-    
-    top_pairs: set[tuple[str,str]] = {p for _,p,_ in scored}
-    return unigram, total_u, bigram, total_bi, top_pairs
-"""
-
-
 def build_vocab(token_iter: Iterable[str],
                 min_count=None, specials: List[str]=None):
     if specials is None:
