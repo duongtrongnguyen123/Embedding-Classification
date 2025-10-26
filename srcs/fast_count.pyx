@@ -115,10 +115,10 @@ def first_pass(object ite, int top_k, int min_pair_count, object to_save_path):
                             o_id2word.append(w)
                             o_word2id[w] = id
                         else: 
-                            idx = <u32> obj
+                            id = <u32> obj
                         unigram[id] += 1
                         o_encode.push_back(id)
-                pair_idx = pair_id_encode(prev_id, id)
+                pair_id = pair_id_encode(prev_id, id)
                 bigram[pair_id] += 1       
             prev_id = id
             i += 1

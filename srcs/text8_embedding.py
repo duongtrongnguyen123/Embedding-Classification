@@ -204,10 +204,10 @@ class SGNS:
 
         U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
         if k > 0:
-            C = Vt[:k]                                   # (k, D) các PC trội
-            P = C.T @ C                                  # (D, D) projector lên span(C)
-            Xc = Xc - Xc @ P                             # loại top-k PCs
-        Xc = Xc / (np.linalg.norm(Xc, axis=1, keepdims=True) + eps)  # re-normalize
+            C = Vt[:k]                                 
+            P = C.T @ C                               
+            Xc = Xc - Xc @ P                          
+        Xc = Xc / (np.linalg.norm(Xc, axis=1, keepdims=True) + eps)  
         return Xc
     
     def prepare_embedding(self, avg=True, l2=True, k=1, eps=1e-12):

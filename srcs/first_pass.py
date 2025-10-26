@@ -36,6 +36,17 @@ common_words = [
     "thing", "everyone", "everybody", "aok_aok", "vg_vg", "soso"
 ]
 
+enhance = [
+"excellent","outstanding","masterpiece","brilliant","moving","gripping","heartfelt",
+"charming","delightful","hilarious","clever","smart","entertaining","engaging",
+"compelling","impressive","top-notch","superb","well-acted","well-written","must-watch",
+"mustsee","rewatchable","worth-watching","underrated","believable","nuanced","satisfying",
+"awful","terrible","horrible","dreadful","boring","dull","uneven","messy","incoherent",
+"cliché","cliched","cringe","cringey","wooden","flat","shallow","pretentious",
+"disappointing","forgettable","overrated","underwritten","tedious","unfunny","predictable",
+"derivative","waste","pointless"
+]
+
 
 def pair_id_decode(id):
     return (int(id>>32), int(id & 0XFFFFFFFF))
@@ -63,23 +74,10 @@ def get_negate_id(o_word2id, a):
     return res
 
 def vocab_pos(id2word, batch_size=32768, group_size=16):
-    V = len(id2word)
-    pos_arr = [None] * V
-
-    def batched(seq, n):
-        for i in range(0, len(seq), n):
-            yield seq[i:i+n]
-
-    text = [" ".join(batch) for batch in batched(id2word, group_size)]
-
-    idx = 0
-    for doc in nlp.pipe(text, batch_size=batch_size):
-        for tok in doc:
-            if idx >= V:
-                break
-            pos_arr[idx] = tok.pos_
-            idx += 1
-    
+    pos_arr = []
+    with nlp.select_pipes(disable=["parser", "ner"]):
+        for doc in nlp.pipe(id2word, batch_size=batch_size):
+            pos_arr.append(doc[0].pos_ if doc else "X")
     return pos_arr
 
 def build_mask(word2id, pos_arr):
@@ -111,16 +109,19 @@ def compute_keep_probs(counts: torch.Tensor=None, t=1e-5, adj_mask: torch.BoolTe
     nz = f > 0
     
     p[nz] = (torch.sqrt(f[nz]/t) + 1) * (t / f[nz])
-    p[adj_mask] = torch.maximum(p[adj_mask], torch.tensor( 0.4, device=device))
+    p[adj_mask] = torch.maximum(p[adj_mask], torch.tensor( 0.45, device=device))
     p[adv_mask] = torch.maximum(p[adv_mask], torch.tensor(0.33, device=device))        
     p[common_mask] = torch.minimum(p[common_mask], torch.tensor(0.001, device=device))
 
     return torch.clamp(p, 0, 1).to(torch.float32)
 
-def test():
-    for s in "hello from here".strip():
-        yield s
 
+def enhnce(word2id, counts):
+    for w in enhance:
+        id = word2id.get(w, None)
+        if id is not None:
+            counts[id] += 200
+    
 
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -136,6 +137,7 @@ if __name__ == "__main__":
     unigram, top_pairs, o_id2word, o_word2id = first_pass(train_iter, top_k=10000, min_pair_count=6, to_save_path=to_save_train_corpus_dir)
     print("save valid encode...")
     save_valid_encode(valid_iter, o_word2id, to_save_path=to_save_valid_corpus_dir)
+    print(len(o_id2word))
 
     print("converting new vocab...") 
     old2new, word2id, id2word, counts = build_vocab(unigram, o_id2word, o_word2id, min_count=25)
@@ -193,16 +195,13 @@ if __name__ == "__main__":
 
     keep_probs = compute_keep_probs(counts, t=6e-6, adj_mask=adj_mask, adv_mask=adv_mask, common_mask=common_mask)
     
+    enhnce(word2id, counts)
 
     skip_id = get_skip_id(o_word2id, AUX, INTENS)
     negate_id = get_negate_id(o_word2id, negate)
 
-    print(keep_probs[word2id["abd"]])
-    print(keep_probs[word2id["wth"]])
-    print(keep_probs[word2id["umm"]])
-    print(keep_probs[word2id["huh"]])
+    print(keep_probs[word2id["happy"]])
     print(counts[word2id["abd"]])
-    print(counts[word2id["wth"]])
     print(counts[word2id["huh"]])
 
     bundle = { 
