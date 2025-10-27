@@ -4,17 +4,12 @@ import random, torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from functools import partial 
 
 import matplotlib.pyplot as plt
 import time
 
+from data_pipeline.data_pipe_ids import SkipGramPairIterable
 
-
-from data_pipe import (
-    SkipGramPairsIterable, SkipGramDataset,
-    make_collate_fn, IterFactory   
-)
 
 
 class SGNS(nn.Module):
@@ -37,11 +32,11 @@ class SGNS(nn.Module):
         return idx.view(B, self.neg_k).to(dtype=torch.long, device=device)
     
     def forward(self, centers, pos, generator=None):
-        assert centers.dtype == torch.long and pos.dtype == torch.long
-        neg = self.neg_sample(centers.size(0), generator)
+        neg = self.neg_sample(centers.shape[0], generator)
         v_c = self.embed_in(centers)
         u_o = self.embed_out(pos)
         u_k = self.embed_out(neg)
+
 
         pos_score = (v_c * u_o).sum(dim=1)
 
@@ -76,9 +71,9 @@ class SGNS(nn.Module):
         return vals, idx
 
 
-def evaluate(model: SGNS, word2id, id2word, wid=["man", "woman", "king", "queen", "happy", "good", "bad", "nice", "time"]):
+def evaluate(model: SGNS, word2id, id2word, wid=["happy", "good", "bad", "shit", "excellent", "outstanding", "masterpiece", "delightful", "awful", "terrible", "boring", "cringe", "waste"]):
     ids = [word2id[i] for i in wid]
-    cos, idx = model.most_similar(ids, 5, "input")
+    cos, idx = model.most_similar(ids, 4)
     for w, row_idx, row_val in zip(wid, idx, cos):
         print(f"Most similar to {w}:")
         for i, v in zip(row_idx, row_val):
@@ -109,109 +104,92 @@ class LossPlotter:
 
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
-    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    curr_dir = os.path.dirname(os.path.abspath(__file__))
-    vocab_dir = os.path.join(curr_dir, "..", "data", "vocab.pt")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    vocab_dir = os.path.join(base_dir, "..", "..", "data", "vocab.pt")
+    train_corpus_dir = os.path.join(base_dir, "..", "..", "data", "n_train_corpus.bin")
+    valid_corpus_dir = os.path.join(base_dir, "..", "..", "data", "n_valid_corpus.bin")
     vocab = torch.load(vocab_dir, map_location='cpu')
     print("loading vocab...")
     word2id = vocab["word2id"]
     id2word = vocab["id2word"]
     counts = vocab["counts"]
-    count = vocab["count"]
     keep_probs = vocab["keep_probs"]
-
+    keep_probs[word2id["abd"]] = 0.001
+    keep_probs[word2id["yuk"]] = 0.001
     print("loaded vocab...")
-
-    #numworker > 0 k goi ham long
-    train_iter = IterFactory("train")
-    valid_iter = IterFactory("validation")
-    pairs_iterable = SkipGramPairsIterable(train_iter, window=5, rng=random.Random(1234), keep_probs=keep_probs, word2id=word2id)         #Bo dau ngoac 
-    valid_pairs_iterable = SkipGramPairsIterable(valid_iter, window=5, rng=random.Random(111), keep_probs=keep_probs, word2id=word2id)
-    dataset = SkipGramDataset(pairs_iterable)
-    valid_dataset = SkipGramDataset(valid_pairs_iterable)
-
-    collate_fn = partial(make_collate_fn)     #collate dung chung duoc chi can thay dataset vi no chi quy dinh cach gom batch 
-
-    #numworker lon phai tang shards
-    #numworker bottlenack
-    loader = DataLoader(dataset, batch_size=32768, collate_fn=collate_fn,
-                        num_workers=2, pin_memory=False, persistent_workers=True, 
-                        prefetch_factor=4)  #pin_mem=True neu GPU      persistent True, prefector > 0 neu worker>0             
-    valid_loader = DataLoader(valid_dataset, batch_size=32768, collate_fn=collate_fn,
-                              num_workers=1, pin_memory=False, persistent_workers=True,
-                                prefetch_factor=4)  #pin_mem=True neu GPU
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SGNS(len(word2id), neg_k=10, counts= counts, dim=256).to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=5e-3)
+    model = SGNS(len(id2word), neg_k=15, counts= counts, dim=256).to(device)
+    opt = torch.optim.AdamW(
+        model.parameters(),
+        lr=1e-4,        
+        betas=(0.9, 0.99),
+        eps=1e-8,         
+        weight_decay=1e-5  
+)
 
     lossplot = LossPlotter()
 
+
+    BATCH_SIZE = 32768
+    train_pair_iterable = SkipGramPairIterable(path=train_corpus_dir, train=True, keep_probs=keep_probs,
+                                               window=5, batch_size=BATCH_SIZE, seed=121,
+                                               device=device)
+    valid_pair_iterable = SkipGramPairIterable(path=valid_corpus_dir, train=False, keep_probs=keep_probs, 
+                                               window=5, batch_size=BATCH_SIZE, seed=124,    
+                                               device=device)
+
+   
+    train_loader = DataLoader(train_pair_iterable, batch_size=None, 
+                              num_workers=8,      
+                              prefetch_factor=8, persistent_workers=True, 
+                              pin_memory=False)
+
+    valid_loader = DataLoader(valid_pair_iterable, batch_size=None,
+                              num_workers=8,      
+                              prefetch_factor=8, persistent_workers=True, 
+                              pin_memory=False)
+
     start = time.time()
-    base_seed=111
+    base_seed = 111
+
     for epoch in range(10):
         model.train()
         generator = torch.Generator(device=device).manual_seed(epoch+base_seed)
-
         train_loss = 0.0
         total_sample = 0
-        for step, batch in enumerate(loader):
-            center = batch["center"]
-            pos = batch["pos"]
+        for step, (center,context) in enumerate(train_loader):
             B = center.shape[0]
-            
             opt.zero_grad(set_to_none=True)
-            loss = model(center, pos, generator)      #loss:tensor
+            loss = model(center, context, generator)
             loss.backward()
             opt.step()
-            train_loss += loss.item() * B
+            train_loss += loss * B
             total_sample += B
 
-            if step % 100 == 0:
-                end = time.time()
-                elapsed = end - start
-                start = end
-                print(f"time: {elapsed}")
-                print(f"step {step}: loss={loss.item():.4f}")
-        print(f"total_sample : {total_sample}")
+            if step % 200 == 0:
+                stop = time.time()
+                elapsed = stop - start
+                prev_step = step-200
+                print(f"step  {prev_step}->{step}: {elapsed}")
+                start = stop
+
+        print(f"total sample: {total_sample}")
         train_loss = train_loss / total_sample
 
+    
         model.eval()
         valid_loss = 0.0
         total_sample = 0
-        for batch in valid_loader:
-            center = batch["center"].to(device)
-            pos = batch["pos"]
+        for step, (center, context) in enumerate(valid_loader):
             B = center.shape[0]
+            loss = model(center, context, generator)
+            opt.step()
+            valid_loss += loss * B
+            total_sample += B
 
-            loss = model(center, pos, generator)
-            valid_loss += loss.item() * B
-            total_sample += B   
+
         valid_loss = valid_loss / total_sample
-        evaluate(model, word2id, id2word, wid=["man", "woman", "king", "queen", "happy", "good", "bad", "nice", "time"])
-        lossplot.update(epoch, train_loss, valid_loss)
-
-
-        bundle = {
-            "word2id" : word2id,
-            "id2word" : id2word,
-            "w_in" : model.embed_in.weight.detach().cpu().float(),
-            "w_out" : model.embed_out.weight.detach().cpu().float()
-        }    
-        save_emb_path = os.path.join(curr_dir, f"embed_epoch{epoch}")
-        torch.save(bundle, save_emb_path)
-    
-
-
-
-
-
-
-
-
-
-
-
-
-#8/10
+        evaluate(model, word2id, id2word)
+        print(f"diff: {train_loss-valid_loss}")
+        #lossplot.update(epoch, train_loss, valid_loss)

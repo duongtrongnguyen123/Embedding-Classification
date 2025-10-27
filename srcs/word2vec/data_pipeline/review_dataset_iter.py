@@ -1,7 +1,5 @@
 from datasets import load_dataset
-import random, torch
 from itertools import islice
-import threading, queue
 
 
 import re
