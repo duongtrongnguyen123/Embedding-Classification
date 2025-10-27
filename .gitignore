@@ -15,3 +15,12 @@ venv/
 
 # macOS system files
 .DS_Store
+
+# Bỏ qua các file dữ liệu
+data/
+imdb_full_reviews.csv
+*.csv
+
+# Bỏ qua các file model/embedding
+vocab.pt
+*.pt
