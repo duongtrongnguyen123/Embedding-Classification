@@ -6,15 +6,15 @@ import numpy as np
 
 exts = [
     Extension(
-        "fast_count",
-        ["fast_count.pyx"],
+        "_count_fast",
+        ["_count_fast.pyx"],
         language="c++",
         include_dirs=[np.get_include()],
         extra_compile_args=["-O3", "-std=c++17"],
     ),
     Extension(
-        "encode_corpus",
-        ["encode_corpus.pyx"],
+        "_encode_corpus",
+        ["_encode_corpus.pyx"],
         language="c++",
         include_dirs=[np.get_include()],
         extra_compile_args=["-O3", "-std=c++17"],

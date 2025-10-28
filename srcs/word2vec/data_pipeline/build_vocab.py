@@ -1,7 +1,6 @@
 import torch
 from typing import Iterable, List, Tuple
 from collections import Counter
-import math
 import os
 
 from data_pipe import iter_wiki_sentences

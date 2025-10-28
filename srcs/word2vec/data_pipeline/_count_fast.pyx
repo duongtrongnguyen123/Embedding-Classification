@@ -25,14 +25,13 @@ ctypedef unsigned int u32
 ctypedef unsigned long long u64
 ctypedef float f32  
 
-cdef object AUX, INTENS, negate, BAD_PART
+cdef object AUX, INTENS, negate
 AUX = {"do","does","did","am","is","are","was","were","be","been","being",
        "have","has","had","will","would","shall","should","can","could",
        "may","might","must"}
 INTENS = {"really","very","quite","so","too","extremely","fairly",
                        "pretty","rather","somewhat","kinda","sorta","at","all"}
 negate = {"no", "not", "never"}
-BAD_PART = {"not", "to"}
 
 
 cdef inline u64 pair_id_encode(u32 a, u32 b) nogil:
