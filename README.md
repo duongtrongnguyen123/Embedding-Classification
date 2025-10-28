@@ -10,7 +10,7 @@ Embedding-Classification/
       │  ├─ data_pipe.py            # Iterator cho text thô
       │  ├─ data_pipe_ids.py        # Iterator cho dữ liệu đã encode ID
       │  ├─ encode_corpus.py        # Encode corpus dùng vocab → lưu memmap
-      │  ├─ review_dataset_iter.py  # Iterator đặc thù cho tập review (IMDB/Amazon)
+      │  ├─ review_dataset_iter.py  # Iterator cho tập review (IMDB/Amazon)
       │  └─ setup.py                # Build Cython extensions
       │
       ├─ embedding/                  # Huấn luyện Word2Vec trên dữ liệu ID
@@ -23,7 +23,7 @@ Embedding-Classification/
       │  └─ train_wikitext.ipynb    # Train Word2Vec trên WikiText
       │
       └─ test/                       # Unit test & benchmark
-         ├─ speedtest.py            # Benchmark tốc độ (đếm, encode, I/O)
+         ├─ speedtest.py            # Benchmark tốc độ nhân ma trận
          ├─ test_encode.py          # Test encode corpus → ID
          └─ test_fast_count.py      # Test module đếm nhanh _count_fast.pyx
 ```
