@@ -83,9 +83,9 @@ def first_pass(object ite, int top_k, int min_pair_count, object to_save_path):
     o_encode.reserve(600000)
 
     cdef object sent, w, obj        #sents:sentence, w: word, obj: map cua word2id 
-    cdef i32 prev_id = -1, n      #prev_id: prev_word's id, i index in array, n = length of sent
-    cdef u32 i, id                      #id: word's id
-    cdef u64 pair_id                 #encode pair_id  
+    cdef i32 prev_id = -1, n        #prev_id: prev_word's id, i index in array, n = length of sent
+    cdef u32 i, id                  #id: word's id
+    cdef u64 pair_id                #encode pair_id  
 
     for sent in ite:
         n = len(sent)
