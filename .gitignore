@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Ignore corpus binaries
+n_train_corpus.bin
+n_valid_corpus.bin
+o_train_corpus.bin
+o_valid_corpus.bin
+
 # Virtual environments
 venv/
 .env/
@@ -24,3 +30,5 @@ imdb_full_reviews.csv
 # Bỏ qua các file model/embedding
 vocab.pt
 *.pt
+
+
