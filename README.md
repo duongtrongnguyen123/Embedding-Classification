@@ -50,5 +50,10 @@ Embedding-Classification/
    |
    └─ classification/
          ├─ IMDB_classify.py         # Phân loại bằng Logistic Regression + Fine-tuning
-         └─ CNN.py             #viet lai file voi chuc nang file vao day
+         └─ textcnn/                 # Phân loại bằng CNN model
+            ├── data_utils.py # Hàm xử lý dữ liệu
+            ├── dataset.py # Tạo dataset cho mô hình
+            ├── main.py # Chạy huấn luyện và đánh giá
+            ├── model.py # Định nghĩa mô hình TextCNN
+            └─  train_eval.py # Hàm train và evaluate mô hình
 ```
