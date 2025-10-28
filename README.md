@@ -1,3 +1,4 @@
+```
 Embedding-Classification/
 └─ srcs/
    └─ word2vec/
@@ -25,3 +26,4 @@ Embedding-Classification/
          ├─ speedtest.py            # Benchmark tốc độ (đếm, encode, I/O)
          ├─ test_encode.py          # Test encode corpus → ID
          └─ test_fast_count.py      # Test module đếm nhanh _count_fast.pyx
+```
