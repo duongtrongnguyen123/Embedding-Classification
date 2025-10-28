@@ -57,3 +57,13 @@ Embedding-Classification/
             ├── model.py             # Định nghĩa mô hình TextCNN
             └─  train_eval.py        # Hàm train và evaluate mô hình
 ```
+
+
+
+## Cài đặt và Build Cython
+```
+cd Embedding-Classification/srcs/word2vec/data_pipeline
+python -m pip install -r ../../requirements.txt
+python setup.py build_ext --inplace
+```
+
