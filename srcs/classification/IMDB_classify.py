@@ -301,7 +301,7 @@ def main():
     #2. Tải IMDB data
    
     cache_path = "data/imdb_processed_cache.pt"
-    base_dir = "data/aclImdb"
+    base_dir = "data"
     max_len = 256 
 
     if os.path.exists(cache_path):
@@ -378,7 +378,7 @@ def main():
     model.to(device)
 
     #Cài đặt Huấn luyện
-    N_EPOCHS = 5
+    N_EPOCHS = 40
 
     learning_rate = 1e-4 
     
