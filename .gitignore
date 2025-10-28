@@ -29,6 +29,7 @@ imdb_full_reviews.csv
 
 # Bỏ qua các file model/embedding
 vocab.pt
+vocab1.pt
 *.pt
 
 
