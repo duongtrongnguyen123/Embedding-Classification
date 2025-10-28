@@ -67,7 +67,7 @@ python -m pip install -r ../../requirements.txt
 python setup.py build_ext --inplace
 ```
 
-## Quy trình chạy nhanh
+## Quy trình chạy nhanh embedding
 ```
 python data_pipeline/count_tokens.py
 python data_pipeline/encode_corpus.py
