@@ -6,11 +6,11 @@ from _encode_corpus import encode_corpus
 
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    saved_vocab_dir = os.path.join(base_dir, "..", "..", "data", "vocab.pt")
-    saved_train_corpus_dir = os.path.join(base_dir, "..", "..", "data", "o_train_corpus.bin")
-    saved_valid_corpus_dir = os.path.join(base_dir, "..", "..", "data", "o_valid_corpus.bin")
-    to_save_train_corpus_dir = os.path.join(base_dir, "..", "..", "data", "n_train_corpus.bin")
-    to_save_valid_corpus_dir = os.path.join(base_dir, "..", "..", "data", "n_valid_corpus.bin")
+    saved_vocab_dir = os.path.join(base_dir, "..", "..", "..", "data", "vocab.pt")
+    saved_train_corpus_dir = os.path.join(base_dir, "..", "..", "..", "data", "o_train_corpus.bin")
+    saved_valid_corpus_dir = os.path.join(base_dir, "..", "..", "..", "data", "o_valid_corpus.bin")
+    to_save_train_corpus_dir = os.path.join(base_dir, "..", "..", "..", "data", "n_train_corpus.bin")
+    to_save_valid_corpus_dir = os.path.join(base_dir, "..", "..", "..", "data", "n_valid_corpus.bin")
     vocab = torch.load(saved_vocab_dir)
     old2new = vocab["old2new"]
     old2new_for_pair = vocab["old2new_for_pair"]

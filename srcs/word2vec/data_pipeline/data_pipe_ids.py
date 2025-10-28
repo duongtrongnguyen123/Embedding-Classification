@@ -43,9 +43,9 @@ class SkipGramPairIterable(IterableDataset):
     def _compute_starts(self, sizes: np.ndarray):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if self.train:
-            self.save_starts_path = os.path.join(base_dir, "..", "data", "train_starts.bin")
+            self.save_starts_path = os.path.join(base_dir, "..", "..", "..", "data", "train_starts.bin")
         else:
-            self.save_starts_path = os.path.join(base_dir, "..", "data", "valid_starts.bin")
+            self.save_starts_path = os.path.join(base_dir, "..", "..", "..", "data", "valid_starts.bin")
         starts = np.zeros_like(sizes, dtype=np.uint32)
         np.cumsum(sizes[:-1], dtype=np.uint32, out=starts[1:])
         with open(self.save_starts_path, "wb") as f:

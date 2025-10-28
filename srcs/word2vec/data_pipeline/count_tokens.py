@@ -125,9 +125,9 @@ def enhnce(word2id, counts):
 
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    to_save_vocab_dir = os.path.join(base_dir, "..", "..", "data", "vocab.pt")
-    to_save_train_corpus_dir = os.path.join(base_dir, "..", "..", "data", "o_train_corpus.bin")
-    to_save_valid_corpus_dir = os.path.join(base_dir, "..", "..", "data", "o_valid_corpus.bin")
+    to_save_vocab_dir = os.path.join(base_dir, "..", "..", "..", "data", "vocab.pt")
+    to_save_train_corpus_dir = os.path.join(base_dir, "..", "..", "..", "data", "o_train_corpus.bin")
+    to_save_valid_corpus_dir = os.path.join(base_dir, "..", "..", "..", "data", "o_valid_corpus.bin")
 
 
     train_iter = train_iter_review_sentences()

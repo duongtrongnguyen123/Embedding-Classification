@@ -79,8 +79,8 @@ def compute_keep_probs(counts: torch.Tensor=None,
 
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = os.path.join(base_dir, "..", "data")
-    
+    data_dir = os.path.join(base_dir, "..", "..", "..", "..", "data")
+    save_path = os.path.join(data_dir, "vocab.pt")
 
     train_iter = iter_wiki_sentences("train")
 
@@ -96,7 +96,6 @@ if __name__ == "__main__":
            "mask" : mask,
         "keep_probs": keep_probs}
     
-    save_path = os.path.join(data_dir, "vocab.pt")
     
     torch.save(obj, save_path)
     print(f"saved vocab, length:{len(word2id)}")
