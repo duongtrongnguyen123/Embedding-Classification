@@ -270,6 +270,15 @@ def main():
 
     # Tính toán ma trận embedding cuối cùng
     w = (embed_in + embed_out) / 2  
+
+    w_centered = w - w.mean(dim=0, keepdim=True)
+
+
+    u, s, v = torch.svd(w_centered)   # hoặc torch.linalg.svd
+    first = v[:, 0]
+
+
+    w = w_centered - (w_centered @ first.unsqueeze(1)) * first.unsqueeze(0)
     
     # Tải các artifacts từ file vocab
     word2id = vocab_data["word2id"]             # dict token -> OLD id
