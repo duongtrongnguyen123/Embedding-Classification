@@ -1,3 +1,23 @@
+# Phân tích Cảm xúc Phim IMDB: Pipeline PyTorch với Embedding Đồng bộ và Fine-tuning
+
+Dự án này triển khai mô hình phân loại cảm xúc nhị phân (Tích cực/Tiêu cực) trên bộ dữ liệu review phim IMDB, tập trung vào việc đồng bộ hóa chặt chẽ quy trình tiền xử lý và chiến lược tinh chỉnh (fine-tuning) Word Embedding.
+
+## Cài đặt và Sử dụng
+
+### Yêu cầu
+
+* Python 3.x
+* PyTorch
+* NumPy
+* Scikit-learn
+* spaCy (`pip install spacy`)
+* Mô hình spaCy tiếng Anh (`python -m spacy download en_core_web_sm`)
+
+### Dữ liệu
+
+1.  **IMDB Dataset:** Đặt thư mục `aclImdb` (chứa `train/pos`, `train/neg`, `test/pos`, `test/neg`) vào thư mục `data/`.
+2.  **Artifacts Embedding:** Đặt các file `vocab.pt`, `embed_in.pt`, `embed_out.pt` vào thư mục `data/`.
+
 ```
 Embedding-Classification/
 └─ srcs/
